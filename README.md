@@ -8,9 +8,9 @@ npm run build
 npm run preview:fixture
 ```
 
-`npm run build` also runs `scripts/check-dist.ts`. That check fails if `products.json` is not `[]`, or if `dist/` contains the fixture sentinel, a Square secret prefix, or the Square location id from site config.
+`npm run build` also runs `scripts/check-dist.ts`. That check fails if a product has no name, if `products.json` or `dist/` contains `[product name]`, or if `dist/` contains the fixture sentinel, a Square secret prefix, `[tax]`, or the Square location id from site config.
 
-`preview:fixture` copies `dist/` to `preview-dist/` and overlays a coming-soon hoodie so the product page can be reviewed. `preview-dist/` is gitignored and is not the site you upload.
+`preview:fixture` copies `dist/` to `preview-dist/`. `preview-dist/` is gitignored and is not the site you upload.
 
 ## Config
 
@@ -28,10 +28,10 @@ npm run preview:fixture
 | `shipWindow`, `refundPolicy`, `cancelPolicy`, `delayPolicy`, `returnsBody`, `shippingBody`, `sizeGuide` | Hidden when empty. The page does not invent these terms. |
 | `statementDescriptor` | Name buyers see on a card statement. Hidden until set. Shipping and Privacy only. |
 | `squareShareNote`, `hostingNote` | Privacy only, and only when set. |
-| `presalePriceCents`, `currency` | Base price. 8500 cents, USD. A size with no `priceCents` uses this. No former price. |
-| `sizes` | S, M, L, XL at 8500. 2XL at 9000. 3XL at 9500. Each `paymentLink` stays null until that size has a Square link. |
-| `shippingCost` | Buyer copy. `Free shipping` on every size. Shown near the price and on Shipping. |
-| `taxIncluded` | Null until Jaamal says whether Square adds tax. Preview prints `[tax]` and does not guess. `check-dist` rejects `[tax]` in `dist/`. |
+| `presalePriceCents`, `currency` | Base figure in config. 8500 cents, USD. Published sizes set their own `priceCents`. No former price. |
+| `sizes` | S, M, L, XL at 8500. 2XL at 9000. 3XL at 9500. Each `paymentLink` stays null. The live links are `squareUrl` on the product. |
+| `shippingCost` | Buyer copy. `Free shipping, US only` on the product and on Shipping. Square collects an address and cannot limit it to the US. |
+| `taxIncluded` | True hides the tax line. The total is the size price. The page does not say tax is included. False prints "plus tax". Null prints `[tax]` in preview. `check-dist` rejects `[tax]` in `dist/`. |
 | `paymentLinkNote` | Owner note only. Not rendered. The Payment Link has no shipping line item. The seller absorbs processing fees, and fees are never shown to buyers. |
 | `timeZone` | Used to print a pre-order end date. |
 
@@ -39,17 +39,17 @@ Current Square location id in config: L951MA40J026G (Valdosta). The built pages 
 
 ## Products
 
-`src/data/products.json` ships as `[]`. An empty catalog shows "First drop coming soon." and hides the "Shop hoodies" button. Fill the file, then rebuild. `check-dist` fails if a published product has no name.
+`src/data/products.json` lists the Pray 4 Better Days Zip Hoodie (`zip-hoodie`, black, presale). An empty catalog still shows "First drop coming soon." and hides the "Shop hoodies" button. `check-dist` fails if a published product has no name, and it rejects the string `[product name]`.
 
-Prices are integer US cents. S, M, L, and XL are 8500 ($85.00). 2XL is 9000 ($90.00). 3XL is 9500 ($95.00). S is selected by default. Changing size updates the price and `Total $X.00` in an `aria-live="polite"` region and does not move focus. Shipping is free on every size, so the total equals that size's price. There is no former-price field. This drop was never sold at another price, so the page cannot show one. A size with `priceCents: null` uses the base 8500. A product with no price at all still shows no price.
+Prices are integer US cents. S, M, L, and XL are 8500 ($85.00). 2XL is 9000 ($90.00). 3XL is 9500 ($95.00). S is selected by default. Changing size updates the price and `Total $X.00` in an `aria-live="polite"` region and does not move focus. Shipping copy is "Free shipping, US only", so the total equals that size's price. There is no tax line and no former-price field. This drop was never sold at another price, so the page cannot show one. A size with `priceCents: null` uses the color presale price, then the color price. A product with no price at all still shows no price.
 
-`taxIncluded` is null. Preview shows a visible `[tax]` bracket beside the total. The bracket is not a guess about tax, and it must not appear in `dist/`.
+`taxIncluded` is true for this drop. That hides the tax line. It is not a claim that the Square charge includes tax. Null still prints `[tax]` in a preview render, and that bracket must not appear in `dist/`.
 
-`paymentLink` on each size is the Square link for that size. It is null until the link exists. `checkoutUrl` is only a fallback for older rows. Either value must be `https` on `square.link`, `checkout.square.site`, or `squareup.com` (subdomains of those hosts count). Any other url leaves the button disabled. There is no Payment Link yet.
+`squareUrl` on each size is the Square Payment Link for that size and that price. When the field is present, an empty string does not fall through to `paymentLink` or `checkoutUrl`. Omit `squareUrl` only for an older row, which then uses `paymentLink` and then `checkoutUrl`. Any checkout url must be `https` on `square.link`, `checkout.square.site`, or `squareup.com` (subdomains of those hosts count). Any other url leaves the button disabled.
 
-Pre-order and Buy now stay disabled until all of these exist: a price, the ship window (`shipEstimate`), `refundPolicy`, `cancelPolicy`, `returnsBody`, `delayPolicy`, a contact email or Instagram, and a Square link. The "charged now" line is a link to `/shipping/` and is printed under the price only when the Pre-order button is actually on. Shipping does not say it on its own. A size stays selectable while the button says Coming soon. A size is struck and disabled only when that size's `remaining` is 0, or the product status is `soldout`.
+Pre-order and Buy now stay disabled until all of these exist: a price, the ship window (`shipEstimate`), `refundPolicy`, `cancelPolicy`, and a Square link. Returns, delay, and contact are not required. The pre-order note is `Pre-order.` plus the ship window and the cancel policy, and it sits with the line "Your card is charged when you place the pre-order." That line links to `/shipping/` and is printed only when the Pre-order button is actually on. The same charge line, ship window, refund, and cancel copy are on Shipping. A size stays selectable while the button says Coming soon. A size is struck and disabled only when that size's `remaining` is 0, or the product status is `soldout`. There is no run size and no remaining count on this drop.
 
-The Payment Link, when it is created, has no shipping line item. The seller absorbs processing fees. The site never shows those fees.
+The Payment Link has no shipping line item. The seller absorbs processing fees. The site never shows those fees.
 
 ```json
 {
@@ -70,7 +70,7 @@ The Payment Link, when it is created, has no shipping line item. The seller abso
       "remaining": null,
       "images": { "front": null, "back": null, "side": null, "details": [] },
       "spin": [],
-      "sizes": [{ "id": "m", "label": "M", "sku": "", "checkoutUrl": "", "priceCents": 8500, "paymentLink": null, "remaining": null }]
+      "sizes": [{ "id": "m", "label": "M", "sku": "", "checkoutUrl": "", "priceCents": 8500, "paymentLink": null, "squareUrl": "", "remaining": null }]
     }
   ]
 }
@@ -102,22 +102,23 @@ The first hoodie image is a real front photo, `front-cutout.png`, background rem
 
 Back, side, and the three-quarter view are renders. Set `render` to true on each. The page prints "Render, final may vary" on that image and the alt text starts with "Render:". Three-quarter is a view radio, the same kind as Front, Back, and Side. It is not the hero and it does not zoom. Do not describe a generated frame as a photograph of the finished garment. The PNG masters for those renders are not in the repo.
 
+The homepage shows the turntable, with the first frame visible, and links that image to the product page. The render tag sits under those frames. The product page does not put a turntable frame `src` in the initial HTML.
+
 The 3D view is a control labeled "3D view". It loads `/vendor/model-viewer.min.js` and `hoodie-3d.glb` only after that control is chosen. While it loads, one status line says "Loading 3D view." If the file fails, that same line says "3D view did not load." The line stays in the page and only its text changes. Retry is the next control, not inside that line, and focus returns to the 3D box. The page also says "Arrow keys rotate." The "Render, final may vary" tag sits under the 3D view and the turntable. The script is self-hosted. `environment-image` is `neutral`, so the viewer does not fetch a remote HDR. The GLB is meshopt-compressed and still uses WebP textures. The meshopt decoder is self-hosted at `/vendor/meshopt_decoder.js`. There is no Draco or KTX2 decoder, and the page does not use gstatic. The camera opens on the front. If WebGL is missing, the same control shows the turntable, 24 frames at about 800px, one frame at a time. Those frame paths come from the prefix and the count, and a listed product keeps every frame in `dist/`. Nothing in that view auto-rotates. Arrow keys orbit the model, or step the frames, and the focus ring stays visible. `reveal="immediate"` is not used.
 
-`npm run build` copies a media file into `dist/` only when a built page references it. With `products.json` empty, the 3D model, turntable, render views, and `/vendor/` stay out of `dist/`. The home page still uses the front photo. Shop cards show `From` plus the lowest size price, and they do not show a Total line.
+`npm run build` copies a media file into `dist/` only when a built page references it. The listed hoodie keeps the front photo, the render views, the GLB, the 24 turntable frames, and `/vendor/`. An empty catalog still leaves those files and `/vendor/` out of `dist/`. Shop cards show `From` plus the lowest size price, and they do not show a Total line.
 
 ## What to provide before launch
 
 - Logo file, if the typed wordmark should be replaced
 - A product name for every hoodie that ships. `check-dist` rejects a blank name.
-- One Square payment link per size. Do not add a shipping line item. The link amount is that size's price: $85.00, $90.00, or $95.00.
 - Contact email or Instagram, before the Contact page should appear
 - About text, if any
-- Ship window, refund policy, cancel policy, returns policy, delay policy, and a contact email or Instagram, before Pre-order or Buy now can turn on
+- Returns policy and delay policy, only when those sentences are real
 - `statementDescriptor`, the card-statement name, before Shipping or Privacy should mention it
 - What Square shares with the seller, and what the host logs, only if those sentences should be published
 - Run size, remaining count, and pre-order end date, only when those facts are real
-- Real photos, plus any generated views with `render` set
+- A `/thanks/` page, only if the Square links should return there. This site does not have one, and it does not redirect.
 
 ## Hostinger
 

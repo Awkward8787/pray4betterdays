@@ -1,1 +1,238 @@
-[]
+[
+  {
+    "name": "Pray 4 Better Days Zip Hoodie",
+    "slug": "zip-hoodie",
+    "status": "presale",
+    "description": "",
+    "shipEstimate": "Ships within 30 days of your order.",
+    "presaleEndsAt": null,
+    "colors": [
+      {
+        "id": "black",
+        "name": "Black",
+        "price": null,
+        "presalePrice": null,
+        "currency": "USD",
+        "runSize": null,
+        "remaining": null,
+        "images": {
+          "front": {
+            "alt": "Black washed zip hoodie, rhinestone Pray 4 Better Days script, airbrushed praying hands with jewelry in clouds, studded hood edge and cuffs",
+            "width": 910,
+            "height": 992,
+            "zoom": "/media/first-design/black/front-cutout.png",
+            "avif": [
+              {
+                "src": "/media/first-design/black/front/w480.avif",
+                "width": 480
+              },
+              {
+                "src": "/media/first-design/black/front/w768.avif",
+                "width": 768
+              },
+              {
+                "src": "/media/first-design/black/front/w910.avif",
+                "width": 910
+              }
+            ],
+            "webp": [
+              {
+                "src": "/media/first-design/black/front/w480.webp",
+                "width": 480
+              },
+              {
+                "src": "/media/first-design/black/front/w768.webp",
+                "width": 768
+              },
+              {
+                "src": "/media/first-design/black/front/w910.webp",
+                "width": 910
+              }
+            ]
+          },
+          "back": {
+            "alt": "Render: back of the black washed zip hoodie, plain back with studded hood rim and studded cuffs",
+            "width": 1360,
+            "height": 2048,
+            "zoom": "",
+            "avif": [
+              {
+                "src": "/media/first-design/black/back/w480.avif",
+                "width": 480
+              },
+              {
+                "src": "/media/first-design/black/back/w768.avif",
+                "width": 768
+              },
+              {
+                "src": "/media/first-design/black/back/w1024.avif",
+                "width": 1024
+              }
+            ],
+            "webp": [
+              {
+                "src": "/media/first-design/black/back/w480.webp",
+                "width": 480
+              },
+              {
+                "src": "/media/first-design/black/back/w768.webp",
+                "width": 768
+              },
+              {
+                "src": "/media/first-design/black/back/w1024.webp",
+                "width": 1024
+              }
+            ],
+            "render": true
+          },
+          "side": {
+            "alt": "Render: left side of the black washed zip hoodie, studded hood edge and studded cuff",
+            "width": 1360,
+            "height": 2048,
+            "zoom": "",
+            "avif": [
+              {
+                "src": "/media/first-design/black/side/w480.avif",
+                "width": 480
+              },
+              {
+                "src": "/media/first-design/black/side/w768.avif",
+                "width": 768
+              },
+              {
+                "src": "/media/first-design/black/side/w1024.avif",
+                "width": 1024
+              }
+            ],
+            "webp": [
+              {
+                "src": "/media/first-design/black/side/w480.webp",
+                "width": 480
+              },
+              {
+                "src": "/media/first-design/black/side/w768.webp",
+                "width": 768
+              },
+              {
+                "src": "/media/first-design/black/side/w1024.webp",
+                "width": 1024
+              }
+            ],
+            "render": true
+          },
+          "details": [
+            {
+              "alt": "Render: three-quarter front view of the black zip hoodie with the rhinestone Pray 4 Better Days script and praying hands",
+              "width": 1360,
+              "height": 2048,
+              "zoom": "",
+              "avif": [
+                {
+                  "src": "/media/first-design/black/support/w480.avif",
+                  "width": 480
+                },
+                {
+                  "src": "/media/first-design/black/support/w768.avif",
+                  "width": 768
+                },
+                {
+                  "src": "/media/first-design/black/support/w1024.avif",
+                  "width": 1024
+                }
+              ],
+              "webp": [
+                {
+                  "src": "/media/first-design/black/support/w480.webp",
+                  "width": 480
+                },
+                {
+                  "src": "/media/first-design/black/support/w768.webp",
+                  "width": 768
+                },
+                {
+                  "src": "/media/first-design/black/support/w1024.webp",
+                  "width": 1024
+                }
+              ],
+              "render": true
+            }
+          ]
+        },
+        "spin": [],
+        "model": {
+          "src": "/media/first-design/black/hoodie-3d.glb",
+          "alt": "Render: 3D model of the Pray 4 Better Days zip hoodie.",
+          "spin": {
+            "alt": "Render: 360 degree spin of the Pray 4 Better Days zip hoodie, front, sides and back",
+            "width": 678,
+            "height": 800,
+            "prefix": "/media/first-design/black/turntable/frame-",
+            "count": 24
+          }
+        },
+        "sizes": [
+          {
+            "id": "s",
+            "label": "S",
+            "sku": "",
+            "checkoutUrl": "",
+            "priceCents": 8500,
+            "paymentLink": null,
+            "squareUrl": "https://square.link/u/6FQbfpdm",
+            "remaining": null
+          },
+          {
+            "id": "m",
+            "label": "M",
+            "sku": "",
+            "checkoutUrl": "",
+            "priceCents": 8500,
+            "paymentLink": null,
+            "squareUrl": "https://square.link/u/nZCG1Vfl",
+            "remaining": null
+          },
+          {
+            "id": "l",
+            "label": "L",
+            "sku": "",
+            "checkoutUrl": "",
+            "priceCents": 8500,
+            "paymentLink": null,
+            "squareUrl": "https://square.link/u/zVj0lUAO",
+            "remaining": null
+          },
+          {
+            "id": "xl",
+            "label": "XL",
+            "sku": "",
+            "checkoutUrl": "",
+            "priceCents": 8500,
+            "paymentLink": null,
+            "squareUrl": "https://square.link/u/6uPOqRKH",
+            "remaining": null
+          },
+          {
+            "id": "2xl",
+            "label": "2XL",
+            "sku": "",
+            "checkoutUrl": "",
+            "priceCents": 9000,
+            "paymentLink": null,
+            "squareUrl": "https://square.link/u/wOwaMyNe",
+            "remaining": null
+          },
+          {
+            "id": "3xl",
+            "label": "3XL",
+            "sku": "",
+            "checkoutUrl": "",
+            "priceCents": 9500,
+            "paymentLink": null,
+            "squareUrl": "https://square.link/u/vWVPVOM4",
+            "remaining": null
+          }
+        ]
+      }
+    ]
+  }
+]

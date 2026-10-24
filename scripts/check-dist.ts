@@ -17,12 +17,13 @@ function collectFailures(): string[] {
   const failures: string[] = []
   const products = JSON.parse(productsRaw) as { name?: string }[]
 
-  if (!Array.isArray(products) || productsRaw !== "[]") failures.push("src/data/products.json must ship as []")
+  if (!Array.isArray(products)) failures.push("src/data/products.json must be an array")
+  if (productsRaw.includes("[product name]")) failures.push("src/data/products.json contains [product name]")
 
   for (const failure of missingProductNames(Array.isArray(products) ? products : [])) failures.push(failure)
 
   const textExt = new Set([".html", ".css", ".js", ".svg", ".xml", ".txt", ".json"])
-  const needles = ["FIXTURE_SENTINEL_DO_NOT_SHIP", "sq0atp", "sk_live", "[tax]"]
+  const needles = ["FIXTURE_SENTINEL_DO_NOT_SHIP", "[product name]", "sq0atp", "sk_live", "[tax]"]
   const squareToken = /(?<![A-Za-z0-9+/])EAAA[A-Za-z0-9_-]{8,}/
   const locationId = (site.squareLocationId ?? "").trim()
   if (locationId) needles.push(locationId)
@@ -46,7 +47,7 @@ function collectFailures(): string[] {
 
   failures.push(...missingFrameFailures(dist))
 
-  if (productsRaw === "[]" && existsSync(join(dist, "vendor"))) {
+  if (Array.isArray(products) && products.length === 0 && existsSync(join(dist, "vendor"))) {
     failures.push("dist/vendor is present while the catalog is empty")
   }
 
