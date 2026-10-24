@@ -759,7 +759,7 @@ label:focus-within {
 .spin {
   display: grid;
   gap: var(--space-xs);
-  justify-items: start;
+  justify-items: center;
 }
 
 .spin img {

@@ -81,11 +81,11 @@ function picture(shot: Shot, opts: { eager: boolean; sizes: string; alt: string 
   return `<picture>${avifSource}${webpSource}<img src="${esc(fallback)}" alt="${esc(opts.alt)}" width="${shot.width}" height="${shot.height}" loading="${loading}" decoding="async"${priority}></picture>`
 }
 
-// Render stills are width 100% of the figure. The figure keeps a 40px margin on each side.
-// From 960px that figure sits in the 1.25fr gallery column.
-function renderSizes(): string {
-  const mobile = "calc(100vw - 2.5rem - 80px)" // ds-allow-hardcode
-  const desktop = "calc((100vw - 5rem - 1.25rem) * 1.25 / 2 - 80px)" // ds-allow-hardcode
+// object-fit: contain draws the portrait inside the height cap, narrower than the figure box.
+// Caps are 45vh below 960px and 48vh from there. The figure keeps a 40px margin on each side.
+function renderSizes(shot: Shot): string {
+  const mobile = `min(calc(100vw - 2.5rem - 80px), calc(45vh * ${shot.width} / ${shot.height}))` // ds-allow-hardcode
+  const desktop = `min(calc((100vw - 5rem - 1.25rem) * 1.25 / 2 - 80px), calc(48vh * ${shot.width} / ${shot.height}))` // ds-allow-hardcode
   return `(min-width: 960px) ${desktop}, ${mobile}` // ds-allow-hardcode
 }
 
@@ -207,7 +207,7 @@ function panel(color: Colorway): string {
       const tab = only
         ? ""
         : `<label class="view-tab">${view.label}<input class="view-input" type="radio" name="view-${esc(color.id)}" value="${esc(view.id)}"${index === 0 ? " checked" : ""}></label>`
-      const sizes = view.shot?.render ? renderSizes() : GALLERY_SIZES
+      const sizes = view.shot?.render ? renderSizes(view.shot) : GALLERY_SIZES
       const body = view.id === "model" && color.model ? modelSlot(color.model) : view.shot ? still(view.shot, view.id === "front", sizes) : ""
       return `<div class="view-block">${tab}<div class="view${only ? " is-only" : ""}" data-view="${esc(view.id)}">${body}</div></div>`
     })
