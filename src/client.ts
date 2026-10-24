@@ -150,36 +150,37 @@ function bindSpin(): void {
   })
 }
 
+function showImageError(frame: HTMLElement, image: HTMLImageElement): void {
+  if (frame.querySelector("[data-note]")) return
+  const note = document.createElement("p")
+  note.className = "img-note"
+  note.dataset.note = ""
+  const text = document.createElement("span")
+  text.dataset.noteText = ""
+  text.textContent = "Image did not load."
+  const retry = document.createElement("button")
+  retry.type = "button"
+  retry.className = "button secondary"
+  retry.dataset.retry = ""
+  retry.textContent = "Retry"
+  retry.addEventListener("click", () => {
+    note.remove()
+    const next = new URL(image.currentSrc || image.src, window.location.href)
+    next.searchParams.set("retry", String(Date.now()))
+    image.src = `${next.pathname}${next.search}`
+  })
+  note.append(text, document.createTextNode(" "), retry)
+  frame.append(note)
+}
+
 function bindImages(): void {
-  document.querySelectorAll<HTMLImageElement>("[data-frame] img, .stage img, .frame img").forEach((image) => {
-    const frame = image.closest("[data-watch]")
-    const note = frame?.querySelector<HTMLElement>("[data-note]")
-    const text = frame?.querySelector<HTMLElement>("[data-note-text]")
-    const retry = frame?.querySelector<HTMLButtonElement>("[data-retry]")
-    if (!note || !text) return
-    const fail = () => {
-      note.hidden = false
-      text.textContent = "Image did not load."
-      if (retry) retry.hidden = false
-    }
-    const ready = () => {
-      note.hidden = true
-      if (retry) retry.hidden = true
-    }
-    if (image.complete && image.naturalWidth === 0) fail()
-    else if (!image.complete) {
-      note.hidden = false
-      text.textContent = "Loading image"
-    }
-    image.addEventListener("load", ready)
+  document.querySelectorAll<HTMLImageElement>(".stage img, .frame img, .detail img").forEach((image) => {
+    const frame = image.closest<HTMLElement>("[data-watch]")
+    if (!frame || !image.getAttribute("src")) return
+    const fail = () => showImageError(frame, image)
     image.addEventListener("error", fail)
-    retry?.addEventListener("click", () => {
-      text.textContent = "Loading image"
-      retry.hidden = true
-      const next = new URL(image.currentSrc || image.src, window.location.href)
-      next.searchParams.set("retry", String(Date.now()))
-      image.src = next.toString()
-    })
+    image.addEventListener("load", () => frame.querySelector("[data-note]")?.remove())
+    if (image.complete && image.naturalWidth === 0) fail()
   })
 }
 

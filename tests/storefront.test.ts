@@ -188,11 +188,36 @@ describe("pages", () => {
   it("shows the empty drop and hides unset contact links", () => {
     const html = page("/", [])
     expect(html).toContain("First drop coming soon.")
+    expect(html.match(/First drop coming soon\./g)?.length).toBe(1)
+    expect(html).toContain('class="hero-note"')
     expect(html).toContain("Shop hoodies")
     expect(html).toContain('aria-label="Pray4BetterDays"')
+    expect(html).toContain('class="logo" href="/">Pray4BetterDays</a>')
+    expect(html).not.toContain("Hoodies.")
     expect(html).not.toContain("instagram.com")
     expect(html).not.toContain("mailto:")
     expect(html).not.toContain(SENTINEL)
+  })
+
+  it("leaves retry and spin out of the page until there is a reason", () => {
+    const home = page("/", [])
+    const unnamed = product({ name: "", slug: "plain" })
+    const gallery = page(`/shop/${unnamed.slug}/`, [unnamed])
+    for (const html of [home, gallery]) {
+      expect(html).not.toContain("Retry")
+      expect(html).not.toContain("data-spin")
+      expect(html).not.toContain("Previous frame")
+      expect(html).not.toContain(">Hoodie<")
+    }
+    expect(gallery).toContain('class="untitled"')
+    expect(gallery).toContain(shot.alt)
+    const spinning = product({
+      colors: [color({ spin: [shot, { ...shot, alt: "Side of the same hoodie." }] })],
+    })
+    const withSpin = page(`/shop/${spinning.slug}/`, [spinning])
+    expect(withSpin).toContain("data-spin")
+    expect(withSpin).toContain("Previous frame")
+    expect(withSpin).not.toContain("Retry")
   })
 
   it("shows instagram only when the handle is set", () => {

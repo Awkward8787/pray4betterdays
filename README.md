@@ -88,7 +88,7 @@ Ghost frames still to supply, for each design and each color: front, back, side,
 
 - Logo file, if the typed wordmark should be replaced
 - Product photos from the ghost list, masters at least 2000px wide
-- Product names
+- Product names. Until `name` is set, the product page shows the photo description. It does not invent a stand-in title.
 - Prices in cents
 - Sizes, and one Square payment link per size
 - Contact email

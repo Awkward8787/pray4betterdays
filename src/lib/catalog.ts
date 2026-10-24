@@ -82,6 +82,16 @@ export function scarcityLines(color: Colorway): string[] {
   return lines
 }
 
+export function productLabel(product: Product): { text: string; named: boolean } {
+  const name = product.name.trim()
+  if (name) return { text: name, named: true }
+  for (const color of product.colors) {
+    const alt = color.images.front?.alt.trim()
+    if (alt) return { text: alt, named: false }
+  }
+  return { text: "", named: false }
+}
+
 export function productPath(slug: string): string {
   return `/shop/${slug}/`
 }

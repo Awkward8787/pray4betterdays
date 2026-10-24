@@ -5,6 +5,7 @@ import {
   instagramHandle,
   normalizePath,
   priceView,
+  productLabel,
   productPath,
   reachLinks,
   scarcityLines,
@@ -75,7 +76,6 @@ function zoomButton(shot: Shot, eager: boolean, sizes: string): string {
       ${picture(shot, { eager, sizes, alt: shot.alt })}
       <span class="zoom-label">${iconZoom} Zoom</span>
     </button>
-    <p class="img-note" data-note hidden><span data-note-text></span> <button type="button" class="button secondary" data-retry hidden>Retry</button></p>
   </figure>`
 }
 
@@ -193,8 +193,9 @@ function presaleCopy(product: Product, site: Site): string {
 }
 
 function productArticle(product: Product, site: Site, now: Date): string {
-  const title = product.name.trim() || "Hoodie"
-  const headingClass = displayHeading(title) ? "display title" : "title"
+  const label = productLabel(product)
+  const headingClass = label.named ? (displayHeading(label.text) ? "display title" : "title") : "untitled"
+  const title = label.text ? `<h1 class="${headingClass}">${esc(label.text)}</h1>` : ""
   const end = product.status === "presale" && product.presaleEndsAt ? ` data-presale-end="${esc(product.presaleEndsAt)}"` : ""
   const colors = product.colors
     .map((color, index) => {
@@ -206,7 +207,7 @@ function productArticle(product: Product, site: Site, now: Date): string {
   return `<article class="product product-layout"${end}>
     <div class="gallery">${product.colors.map((color) => panel(product, color, now)).join("")}</div>
     <div class="buy">
-      <h1 class="${headingClass}">${esc(title)}</h1>
+      ${title}
       ${description}
       <fieldset class="choices"><legend>Color</legend>${colors}</fieldset>
       ${product.colors.map((color) => group(product, color, now)).join("")}
@@ -271,13 +272,11 @@ function sizeGuide(site: Site): string {
   return `<table class="guide"><caption>Size guide</caption><thead><tr><th scope="col">Size</th><th scope="col">Chest</th><th scope="col">Length</th><th scope="col">Sleeve</th></tr></thead><tbody>${rows}</tbody></table>`
 }
 
-function header(site: Site, path: string, home: boolean): string {
+function header(site: Site, path: string): string {
   const primary = NAV.filter(([href]) => href === "/shop/" || href === "/contact/")
     .map(([href, label]) => `<a href="${href}"${path === href.replace(/\/$/, "") || path === href ? ` aria-current="page"` : ""}>${label}</a>`)
     .join("")
-  const logo = home
-    ? ""
-    : `<a class="logo" href="/">${esc(site.brand)}</a>`
+  const logo = `<a class="logo" href="/">${esc(site.brand)}</a>`
   return `<header class="site-header">${logo}<nav class="primary-nav" aria-label="Primary">${primary}</nav><button type="button" class="menu-button" data-menu aria-expanded="false" aria-controls="nav-dialog">${iconMenu} Menu</button></header>`
 }
 
@@ -321,7 +320,7 @@ function documentPage(ctx: Ctx, opts: { title: string; description: string; path
 </head>
 <body>
   <a class="skip" href="#content">Skip to content</a>
-  ${header(ctx.site, opts.path, opts.path === "/")}
+  ${header(ctx.site, opts.path)}
   <main id="content">${opts.main}</main>
   ${footer(ctx.site, opts.path)}
   ${dialogs()}
@@ -335,18 +334,25 @@ function home(ctx: Ctx): string {
   const hero = ctx.hero
     ? zoomButton(ctx.hero, true, HERO_SIZES)
     : ""
+  const links = ctx.products.length ? [] : reachLinks(ctx.site)
+  const reach = links.length
+    ? `<p class="reach">${links.map((link) => `<a class="text-link" href="${esc(link.href)}">${esc(link.label)}</a>`).join("")}</p>`
+    : ""
+  const note = ctx.products.length
+    ? ""
+    : `<div class="hero-note"><p>First drop coming soon.</p>${reach}</div>`
   const drop = ctx.products.length
-    ? `<h2>Current drop</h2>${catalog(ctx.products, ctx.site, ctx.now)}`
-    : catalog(ctx.products, ctx.site, ctx.now)
+    ? `<section class="drop"><h2>Current drop</h2>${catalog(ctx.products, ctx.site, ctx.now)}</section>`
+    : ""
   return `<section class="hero">
     <div class="hero-copy">
       <h1 class="display wordmark" aria-label="${esc(ctx.site.brand)}">Pray4<br>BetterDays</h1>
-      <p>Hoodies.</p>
       <p><a class="button" href="/shop/">Shop hoodies</a></p>
     </div>
     ${hero}
+    ${note}
   </section>
-  <section class="drop">${drop}</section>`
+  ${drop}`
 }
 
 function about(ctx: Ctx): string {
@@ -440,9 +446,10 @@ export function renderRoute(rawPath: string, ctx: Ctx): { status: number; html: 
   if (shopMatch) {
     const product = findProduct(ctx.products, shopMatch[1])
     if (!product) return notFound(ctx)
-    const label = product.name.trim() || "Hoodie"
+    const label = productLabel(product)
+    const heading = label.text || brand
     return documentPage(ctx, {
-      title: `${label} · ${brand}`,
+      title: label.text ? `${heading} · ${brand}` : brand,
       description,
       path: productPath(product.slug),
       main: `${productArticle(product, ctx.site, ctx.now)}${sizeGuide(ctx.site)}`,
