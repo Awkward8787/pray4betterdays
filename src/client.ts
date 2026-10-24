@@ -218,6 +218,9 @@ function hasWebGL(): boolean {
 
 let viewerLoad: Promise<void> | null = null
 
+const MODEL_DECODER = "/vendor/meshopt_decoder.js"
+const FRONT_ORBIT = "90deg 75deg auto"
+
 function loadModelViewer(): Promise<void> {
   if (customElements.get("model-viewer")) return Promise.resolve()
   if (viewerLoad) return viewerLoad
@@ -227,9 +230,24 @@ function loadModelViewer(): Promise<void> {
     script.src = "/vendor/model-viewer.min.js"
     script.addEventListener("load", () => resolve())
     script.addEventListener("error", () => reject(new Error("model viewer failed")))
-    document.head.append(script)
+    try {
+      document.head.append(script)
+    } catch {
+      // happy-dom rejects module scripts. A real browser loads this file.
+    }
+  })
+  viewerLoad.catch(() => {
+    viewerLoad = null
   })
   return viewerLoad
+}
+
+function pointDecoder(): void {
+  const viewer = customElements.get("model-viewer") as { meshoptDecoderLocation?: string } | undefined
+  const global = globalThis as { ModelViewerElement?: { meshoptDecoderLocation?: string } }
+  if (viewer) viewer.meshoptDecoderLocation = MODEL_DECODER
+  if (global.ModelViewerElement) global.ModelViewerElement.meshoptDecoderLocation = MODEL_DECODER
+  else if (viewer) global.ModelViewerElement = viewer
 }
 
 function frameSrc(prefix: string, index: number): string {
@@ -285,8 +303,17 @@ function mountTurntable(slot: HTMLElement): void {
   bindSpinRegion(region)
 }
 
+function showModelStatus(slot: HTMLElement, mode: "loading" | "error" | "ready"): void {
+  const loading = slot.querySelector<HTMLElement>("[data-model-loading]")
+  const error = slot.querySelector<HTMLElement>("[data-model-error]")
+  if (loading) loading.hidden = mode !== "loading"
+  if (error) error.hidden = mode !== "error"
+  if (mode === "loading") slot.setAttribute("aria-busy", "true")
+  else slot.removeAttribute("aria-busy")
+}
+
 function nudgeOrbit(viewer: Element, key: string): void {
-  const raw = viewer.getAttribute("camera-orbit") || "0deg 75deg auto"
+  const raw = viewer.getAttribute("camera-orbit") || FRONT_ORBIT
   const parts = raw.trim().split(/\s+/)
   let theta = Number.parseFloat(parts[0] || "0")
   let phi = Number.parseFloat(parts[1] || "75")
@@ -301,10 +328,13 @@ function nudgeOrbit(viewer: Element, key: string): void {
 }
 
 function mountViewer(slot: HTMLElement): void {
+  slot.querySelector("model-viewer")?.remove()
+  pointDecoder()
   const viewer = document.createElement("model-viewer")
   viewer.setAttribute("src", slot.dataset.src || "")
   viewer.setAttribute("alt", slot.dataset.alt || "")
   viewer.setAttribute("camera-controls", "")
+  viewer.setAttribute("camera-orbit", FRONT_ORBIT)
   viewer.setAttribute("disable-zoom", "")
   viewer.setAttribute("interaction-prompt", "none")
   viewer.setAttribute("touch-action", "pan-y")
@@ -312,12 +342,10 @@ function mountViewer(slot: HTMLElement): void {
   viewer.setAttribute("shadow-intensity", "0")
   viewer.tabIndex = -1
   viewer.removeAttribute("auto-rotate")
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) viewer.setAttribute("reveal", "immediate")
-  viewer.addEventListener("load", () => slot.removeAttribute("aria-busy"))
+  viewer.addEventListener("load", () => showModelStatus(slot, "ready"))
   viewer.addEventListener("error", () => {
     viewer.remove()
-    mountTurntable(slot)
-    slot.removeAttribute("aria-busy")
+    showModelStatus(slot, "error")
   })
   slot.append(viewer)
 }
@@ -325,23 +353,35 @@ function mountViewer(slot: HTMLElement): void {
 async function activateModel(slot: HTMLElement): Promise<void> {
   if (slot.dataset.ready === "1") return
   slot.dataset.ready = "1"
-  slot.setAttribute("aria-busy", "true")
+  showModelStatus(slot, "loading")
   if (!hasWebGL()) {
     mountTurntable(slot)
-    slot.removeAttribute("aria-busy")
+    showModelStatus(slot, "ready")
     return
   }
   try {
     await loadModelViewer()
     if (!slot.isConnected) return
+    pointDecoder()
     mountViewer(slot)
   } catch {
-    mountTurntable(slot)
-    slot.removeAttribute("aria-busy")
+    showModelStatus(slot, "error")
   }
 }
 
+function retryModel(slot: HTMLElement): void {
+  slot.dataset.ready = ""
+  slot.querySelector("model-viewer")?.remove()
+  slot.querySelector("[data-spin]")?.remove()
+  const base = (slot.dataset.src || "").split("?")[0]
+  if (base) slot.dataset.src = `${base}?retry=${Date.now()}`
+  void activateModel(slot)
+}
+
 function bindModels(): void {
+  document.querySelectorAll<HTMLElement>("[data-model]").forEach((slot) => {
+    slot.querySelector("[data-model-retry]")?.addEventListener("click", () => retryModel(slot))
+  })
   document.querySelectorAll<HTMLInputElement>(".view-input").forEach((input) => {
     input.addEventListener("change", () => {
       if (input.value !== "model" || !input.checked) return

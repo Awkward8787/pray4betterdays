@@ -1,5 +1,6 @@
-import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
+import { mediaRefs } from "./media-files"
 import { renderRoute, type Assets } from "../src/lib/render"
 import type { ModelView, Product, Shot, Site } from "../src/lib/types"
 import black from "../src/data/black.json"
@@ -66,4 +67,19 @@ function writePage(route: string, file: string): void {
 
 writePage("/shop/", join(preview, "shop/index.html"))
 writePage(`/shop/${fixture.slug}/`, join(preview, "shop", fixture.slug, "index.html"))
+writePage("/", join(preview, "index.html"))
+
+function copyMedia(html: string): void {
+  for (const ref of mediaRefs(html)) {
+    const from = join(root, "public", ref.slice(1))
+    const to = join(preview, ref.slice(1))
+    if (!existsSync(from)) continue
+    mkdirSync(dirname(to), { recursive: true })
+    copyFileSync(from, to)
+  }
+}
+
+copyMedia(readFileSync(join(preview, "index.html"), "utf8"))
+copyMedia(readFileSync(join(preview, "shop/index.html"), "utf8"))
+copyMedia(readFileSync(join(preview, "shop", fixture.slug, "index.html"), "utf8"))
 console.log("preview fixture written (not part of dist)")

@@ -33,8 +33,9 @@ export interface Ctx {
 }
 
 // sizes attributes need px breakpoints. CSS media queries cannot read a custom property here.
-const HERO_SIZES = "(min-width: 960px) 50vw, 100vw" // ds-allow-hardcode
-const GALLERY_SIZES = "(min-width: 960px) 58vw, 100vw" // ds-allow-hardcode
+// The height caps are 45vh and 60vh on the hero, and 45vh / 48vh on the product. The trimmed front is about 0.92 wide per tall.
+const HERO_SIZES = "(min-width: 960px) min(50vw, 55vh), min(100vw, 42vh)" // ds-allow-hardcode
+const GALLERY_SIZES = "(min-width: 960px) min(58vw, 44vh), min(100vw, 42vh)" // ds-allow-hardcode
 const CARD_SIZES = "(min-width: 720px) 40vw, 100vw" // ds-allow-hardcode
 
 const NAV = [
@@ -104,11 +105,6 @@ function still(shot: Shot, eager: boolean, sizes: string): string {
   return zoomButton(shot, eager, sizes)
 }
 
-function supportThumb(shot: Shot): string {
-  const alt = shotAlt(shot)
-  return `<figure class="support" data-watch>${picture(shot, { eager: false, sizes: "8rem", alt })}${renderBadge(shot)}</figure>`
-}
-
 function ctaMarkup(cta: Cta, sizeId: string, fallback = false): string {
   const size = fallback ? "" : ` data-size="${esc(sizeId)}"`
   const extra = fallback ? " buy-fallback" : " buy-link"
@@ -156,13 +152,17 @@ function viewsFor(color: Colorway): { id: string; label: string; shot: Shot | nu
   if (color.images.front) views.push({ id: "front", label: "Front", shot: color.images.front })
   if (color.images.back) views.push({ id: "back", label: "Back", shot: color.images.back })
   if (color.images.side) views.push({ id: "side", label: "Side", shot: color.images.side })
+  for (const shot of color.images.details) {
+    if (!shot.render) continue
+    views.push({ id: "three-quarter", label: "Three-quarter", shot })
+  }
   if (color.model) views.push({ id: "model", label: "3D view", shot: null })
   return views
 }
 
 function modelSlot(model: ModelView): string {
   const spin = model.spin
-  return `<div class="stage model-slot" data-model tabindex="0" role="region" aria-label="${esc(model.alt)}" data-src="${esc(model.src)}" data-alt="${esc(model.alt)}" data-frame-prefix="${esc(spin.prefix)}" data-frame-count="${spin.count}" data-frame-w="${spin.width}" data-frame-h="${spin.height}" data-frame-alt="${esc(spin.alt)}"><span class="render-label">${esc(RENDER_NOTE)}</span></div>`
+  return `<div class="stage model-slot" data-model tabindex="0" role="region" aria-label="${esc(model.alt)}" aria-busy="true" data-src="${esc(model.src)}" data-alt="${esc(model.alt)}" data-frame-prefix="${esc(spin.prefix)}" data-frame-count="${spin.count}" data-frame-w="${spin.width}" data-frame-h="${spin.height}" data-frame-alt="${esc(spin.alt)}"><p class="model-status" data-model-loading>Loading 3D view.</p><p class="model-status" data-model-error hidden><span>3D view did not load.</span> <button type="button" class="button secondary" data-model-retry>Retry</button></p><span class="render-label">${esc(RENDER_NOTE)}</span></div>`
 }
 
 function spinBlock(frames: Shot[]): string {
@@ -191,25 +191,17 @@ function spinBlock(frames: Shot[]): string {
 function panel(color: Colorway): string {
   const views = viewsFor(color)
   const only = views.length <= 1
-  const tabs = views
-    .map(
-      (view, index) =>
-        `<label class="view-tab">${view.label}<input class="view-input" type="radio" name="view-${esc(color.id)}" value="${esc(view.id)}"${index === 0 ? " checked" : ""}></label>`,
-    )
-    .join("")
-  const renders = color.images.details.filter((shot) => shot.render)
   const photos = color.images.details.filter((shot) => !shot.render)
-  const thumbs = renders.map((shot) => supportThumb(shot)).join("")
-  const switcher =
-    views.length > 1 || thumbs
-      ? `<fieldset class="views"><legend>View</legend>${views.length > 1 ? tabs : ""}${thumbs}</fieldset>`
-      : ""
-  const shots = views
-    .map((view) => {
+  const blocks = views
+    .map((view, index) => {
+      const tab = only
+        ? ""
+        : `<label class="view-tab">${view.label}<input class="view-input" type="radio" name="view-${esc(color.id)}" value="${esc(view.id)}"${index === 0 ? " checked" : ""}></label>`
       const body = view.id === "model" && color.model ? modelSlot(color.model) : view.shot ? still(view.shot, view.id === "front", GALLERY_SIZES) : ""
-      return `<div class="view${only ? " is-only" : ""}" data-view="${esc(view.id)}">${body}</div>`
+      return `<div class="view-block">${tab}<div class="view${only ? " is-only" : ""}" data-view="${esc(view.id)}">${body}</div></div>`
     })
     .join("")
+  const switcher = views.length > 1 ? `<fieldset class="views"><legend>View</legend>${blocks}</fieldset>` : blocks
   const details = photos.length
     ? `<h2>Details</h2><ul class="details">${photos
         .map((shot) => {
@@ -218,7 +210,7 @@ function panel(color: Colorway): string {
         })
         .join("")}</ul>`
     : ""
-  return `<div class="panel" data-color="${esc(color.id)}">${switcher}${shots}${spinBlock(color.spin)}${details}</div>`
+  return `<div class="panel" data-color="${esc(color.id)}">${switcher}${spinBlock(color.spin)}${details}</div>`
 }
 
 function group(product: Product, color: Colorway, site: Site, now: Date): string {
@@ -226,36 +218,31 @@ function group(product: Product, color: Colorway, site: Site, now: Date): string
   const selected = states.findIndex((state) => state.label !== "Sold out")
   const amounts = sizedAmounts(product, color, site)
   const amountFor = new Map(amounts.map((row) => [row.id, row.amount]))
-  const sizes = color.sizes
+  const offers = color.sizes
     .map((size, index) => {
       const soldOut = sizeSoldOut(product, size)
       const disabled = soldOut ? " disabled" : ""
       const state = soldOut ? ` data-state="soldout"` : ""
       const checked = index === selected ? " checked" : ""
       const amount = amountFor.get(size.id) ?? ""
-      const price = amount ? ` data-price="${esc(amount)}" data-total="${esc(site.taxIncluded === false ? `${amount} plus tax` : `Total ${amount}`)}"` : ""
+      const priceAttr = amount ? ` data-price="${esc(amount)}" data-total="${esc(site.taxIncluded === false ? `${amount} plus tax` : `Total ${amount}`)}"` : ""
       const note = soldOut ? `<span class="size-state">Sold out</span>` : ""
       const sku = size.sku.trim() ? `<span class="sku">${esc(size.sku)}</span>` : ""
-      return `<label class="size"${state}><input class="size-input" type="radio" name="size-${esc(color.id)}" value="${esc(size.id)}"${checked}${disabled}${price}><span>${esc(size.label)}</span>${note}${sku}</label>`
+      const price = amount ? `<p class="price" data-size="${esc(size.id)}"><span>${esc(amount)}</span></p>` : ""
+      const total = amount ? totalMarkup(amount, size.id, site) : ""
+      const ship = amount ? shippingCostMarkup(site) : ""
+      const tax = amount ? taxMarkup(site) : ""
+      const disclosure = states[index].kind === "link" && states[index].label === "Pre-order" ? presaleCopy(product, site) : ""
+      return `<div class="offer">${price}${ship}${total}${tax}${disclosure}<label class="size"${state}><input class="size-input" type="radio" name="size-${esc(color.id)}" value="${esc(size.id)}"${checked}${disabled}${priceAttr}><span>${esc(size.label)}</span>${note}${sku}</label>${ctaMarkup(states[index], size.id)}</div>`
     })
     .join("")
-  const prices = amounts.map((row) => `<p class="price" data-size="${esc(row.id)}"><span>${esc(row.amount)}</span></p>`).join("")
-  const totals = amounts.map((row) => totalMarkup(row.amount, row.id, site)).join("")
-  const buys = color.sizes.map((size, index) => ctaMarkup(states[index], size.id)).join("")
   const fallbackCta = states[0] ?? { kind: "disabled" as const, label: "Coming soon" as const }
   const fallback = ctaMarkup(fallbackCta.kind === "link" ? { kind: "disabled", label: "Coming soon" } : fallbackCta, "", true)
-  const disclosure = states.some((state) => state.kind === "link" && state.label === "Pre-order") ? presaleCopy(product, site) : ""
   const live = amounts.length ? `<p class="live" data-price-live aria-live="polite"></p>` : ""
   return `<div class="group" data-color="${esc(color.id)}">
-    ${prices}
-    ${amounts.length ? shippingCostMarkup(site) : ""}
-    ${totals}
-    ${amounts.length ? taxMarkup(site) : ""}
     ${live}
-    ${disclosure}
-    ${scarcityMarkup(color)}
-    <fieldset class="sizes"><legend>Size</legend>${sizes}</fieldset>
-    <div class="buys">${buys}${fallback}</div>
+    <fieldset class="sizes"><legend>Size</legend>${scarcityMarkup(color)}${offers}</fieldset>
+    ${fallback}
   </div>`
 }
 
@@ -310,17 +297,19 @@ function card(product: Product, site: Site, now: Date, lead: boolean): string {
   const name = product.name.trim() ? `<span class="card-name">${esc(product.name.trim())}</span>` : ""
   const blocked = color ? scarcityLines(color) : []
   const state = cardState(product, site, now)
-  const starting = color ? sizedAmounts(product, color, site)[0] : undefined
-  const price = starting ? `<p class="price"><span>${esc(starting.amount)}</span></p>` : ""
-  const shipping = starting ? shippingCostMarkup(site) : ""
-  const total = starting
-    ? site.taxIncluded === false
-      ? `<p class="total"><span>${esc(starting.amount)} plus tax</span></p>`
-      : `<p class="total"><span>Total</span> <span>${esc(starting.amount)}</span></p>`
-    : ""
-  const tax = starting ? taxMarkup(site) : ""
+  const lowest = color
+    ? color.sizes.reduce<{ cents: number; amount: string } | null>((best, size) => {
+        const cents = sizePriceCents(product, color, size, site)
+        if (cents == null) return best
+        if (best && best.cents <= cents) return best
+        return { cents, amount: formatMoney(cents, color.currency) }
+      }, null)
+    : null
+  const price = lowest ? `<p class="price"><span>From</span> <span>${esc(lowest.amount)}</span></p>` : ""
+  const shipping = lowest ? shippingCostMarkup(site) : ""
+  const tax = lowest ? taxMarkup(site) : ""
   const run = blocked.length ? `<span class="runs">${blocked.map((line) => `<span>${esc(line)}</span>`).join("")}</span>` : ""
-  return `<a class="card${lead ? " card-lead" : ""}" href="${productPath(product.slug)}">${frame}<span class="card-copy">${name}${price}${shipping}${total}${tax}${state}${run}</span></a>`
+  return `<a class="card${lead ? " card-lead" : ""}" href="${productPath(product.slug)}">${frame}<div class="card-copy">${name}${price}${shipping}${tax}${state}${run}</div></a>`
 }
 
 function cardState(product: Product, site: Site, now: Date): string {

@@ -3,6 +3,7 @@ import { dirname, join } from "node:path"
 import { contactReady } from "../src/lib/catalog"
 import { renderRoute, type Assets } from "../src/lib/render"
 import type { Product, Shot, Site } from "../src/lib/types"
+import { pruneUnreferencedMedia } from "./media-files"
 
 const root = process.cwd()
 const dist = join(root, "dist")
@@ -45,4 +46,6 @@ writeFileSync(
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`,
 )
 
+const dropped = pruneUnreferencedMedia(dist)
 console.log(`wrote ${urls.length + 1} html files`)
+if (dropped.length) console.log(`left ${dropped.length} unlisted media files out of dist`)

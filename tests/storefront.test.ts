@@ -60,6 +60,12 @@ function product(overrides: Partial<Product> = {}): Product {
   }
 }
 
+function sizeRadios(html: string): string {
+  const at = html.indexOf('<fieldset class="sizes">')
+  const field = html.slice(at, html.indexOf("</fieldset>", at))
+  return [...field.matchAll(/<input class="size-input"[^>]*>/g)].map((match) => match[0]).join("\n")
+}
+
 function page(path: string, products: Product[], extra?: Partial<Site>): string {
   const ctx: Ctx = {
     site: site(extra),
@@ -262,10 +268,8 @@ describe("pages", () => {
   it("disables buy when the checkout url is missing", () => {
     const item = product({ status: "available" })
     const html = page(`/shop/${item.slug}/`, [item])
-    const sizeAt = html.indexOf('<fieldset class="sizes">')
-    const sizes = html.slice(sizeAt, html.indexOf("</fieldset>", sizeAt))
     expect(html).toContain("Coming soon")
-    expect(sizes).not.toContain("Coming soon")
+    expect(sizeRadios(html)).not.toContain("disabled")
     expect(html).not.toContain('class="button buy-link" href')
     expect(html).toContain("disabled")
   })
@@ -297,10 +301,8 @@ describe("pages", () => {
       colors: [color({ remaining: 0, price: 5000, sizes: [{ id: "m", label: "M", sku: "", checkoutUrl: "" }] })],
     })
     const openHtml = page(`/shop/${open.slug}/`, [open])
-    const openAt = openHtml.indexOf('<fieldset class="sizes">')
-    const openSizes = openHtml.slice(openAt, openHtml.indexOf("</fieldset>", openAt))
-    expect(openSizes).not.toContain('data-state="soldout"')
-    expect(openSizes).not.toContain("disabled")
+    expect(openHtml).not.toContain('data-state="soldout"')
+    expect(sizeRadios(openHtml)).not.toContain("disabled")
   })
 
   it("shows the empty drop and hides unset contact links", () => {
@@ -475,7 +477,7 @@ describe("pages", () => {
     const fieldAt = html.indexOf('<fieldset class="sizes">')
     const field = html.slice(fieldAt, html.indexOf("</fieldset>", fieldAt))
     expect(field).toContain('value="s" checked')
-    expect(field).not.toContain("disabled")
+    expect(sizeRadios(html)).not.toContain("disabled")
     expect(field).not.toContain('data-state="soldout"')
     for (const id of ["s", "m", "l", "xl"]) {
       expect(html).toContain(`<p class="price" data-size="${id}"><span>$85.00</span></p>`)
@@ -527,9 +529,7 @@ describe("pages", () => {
     const open = page(`/shop/${item.slug}/`, [item], terms)
     expect(open).toContain("https://square.link/u/example")
     expect(open).toContain("Buy now")
-    const fieldAt = open.indexOf('<fieldset class="sizes">')
-    const field = open.slice(fieldAt, open.indexOf("</fieldset>", fieldAt))
-    expect(field).not.toContain("disabled")
+    expect(sizeRadios(open)).not.toContain("disabled")
   })
 
   it("keeps generated views out of zoom and leaves the 3D file unloaded", () => {
@@ -543,6 +543,24 @@ describe("pages", () => {
       expect(alt.toLowerCase()).not.toContain("photo")
       expect(alt.toLowerCase()).not.toContain("ghost")
     }
+    expect(black.model.alt.toLowerCase()).not.toContain("drag")
+    expect(black.model.alt.toLowerCase()).not.toContain("arrow")
+    expect(black.model.spin.count).toBe(24)
+    expect(JSON.stringify(black)).not.toContain("w1360")
+    expect(black.front.webp.some((file) => file.width === 160)).toBe(true)
+    const client = readFileSync(join("src/client.ts"), "utf8")
+    expect(client).not.toContain('reveal", "immediate"')
+    expect(client).not.toContain('reveal="immediate"')
+    expect(client).toContain('const FRONT_ORBIT = "90deg 75deg auto"')
+    expect(client).toContain("/vendor/meshopt_decoder.js")
+    const css = readFileSync(join("src/styles/site.css"), "utf8")
+    expect(css).not.toContain('[value="2xl"]')
+    expect(css).not.toContain('[value="s"]')
+    expect(css).toContain("var(--hero-media)")
+    expect(readFileSync(join("src/styles/tokens.css"), "utf8")).not.toContain("--gallery")
+    expect(readFileSync(join("src/lib/render.ts"), "utf8")).toContain("min(100vw, 42vh)")
+    expect(readFileSync(join("public/.htaccess"), "utf8")).toContain("mod_deflate")
+    expect(readFileSync(join("scripts/check-dist.ts"), "utf8")).not.toContain("vendor${sep}")
     const item = product({
       colors: [
         color({
@@ -553,16 +571,52 @@ describe("pages", () => {
     })
     const html = page(`/shop/${item.slug}/`, [item])
     expect(html).toContain("3D view")
+    expect(html).toContain("Three-quarter")
+    expect(html).toContain('value="three-quarter"')
+    expect(html).toContain("Loading 3D view.")
+    expect(html).toContain("3D view did not load.")
+    expect(html).toContain("data-model-retry")
     expect(html).toContain("Render, final may vary")
     expect(html).not.toContain("model-viewer.min.js")
     expect(html).not.toContain("<model-viewer")
     expect(html).not.toContain('src="/media/first-design/black/turntable/frame-00.webp"')
+    expect(html).not.toContain('class="support"')
     expect(html).not.toContain("ghost")
+    const angleAt = html.indexOf('data-view="three-quarter"')
+    const angleHtml = html.slice(angleAt, html.indexOf("</div>", angleAt))
+    expect(angleHtml).not.toContain("data-zoom")
     const backAt = html.indexOf('data-view="back"')
     const backHtml = html.slice(backAt, html.indexOf("</div>", backAt))
     expect(backHtml).not.toContain("data-zoom")
     expect(html).toContain("data-zoom=")
     const check = readFileSync(join("scripts/check-dist.ts"), "utf8")
     expect(check.indexOf("missingProductNames(")).toBeGreaterThan(check.indexOf("must ship as []"))
+    const shopItem = product({
+      name: "[product name]",
+      status: "presale",
+      colors: [
+        color({
+          presalePrice: 8500,
+          sizes: (siteFile as Site).sizes.map((size) => ({
+            id: size.id,
+            label: size.label,
+            sku: "",
+            checkoutUrl: "",
+            priceCents: size.priceCents,
+            paymentLink: null,
+            remaining: null,
+          })),
+        }),
+      ],
+    })
+    const shop = page("/shop/", [shopItem])
+    const cardAt = shop.indexOf('class="card')
+    const card = shop.slice(cardAt, shop.indexOf("</a>", cardAt))
+    expect(card).toContain('<div class="card-copy">')
+    expect(card).toContain("<span>From</span>")
+    expect(card).toContain("$85.00")
+    expect(card).not.toContain("Total")
+    expect(card).not.toContain("<span><p")
+    expect(card).not.toContain("<span class=\"card-copy\">")
   })
 })

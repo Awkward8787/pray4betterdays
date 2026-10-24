@@ -78,7 +78,7 @@ The Payment Link, when it is created, has no shipping line item. The seller abso
 
 `status` is `presale`, `available`, `soldout`, or `comingsoon`. Color ids the page can switch are `black`, `gray`, and `white`. Size ids are `s`, `m`, `l`, `xl`, `2xl`, and `3xl`.
 
-`runSize` renders as "Run of N" only when it is a number above zero. The page does not print a "left" count. `remaining: 0` marks that color sold out and disables Buy. There is no countdown. `presaleEndsAt` is printed as a date. If that instant has passed, the button is Pre-order closed (at build time, and again once when the page loads).
+`runSize` renders as "Run of N" only when it is a number above zero. The page does not print a "left" count. `remaining: 0` on a size strikes that size and disables it. A product with `status` `soldout` does the same for every size. There is no countdown. `presaleEndsAt` is printed as a date. If that instant has passed, the button is Pre-order closed (at build time, and again once when the page loads).
 
 A shot may set `"render": true`. That flag is for a generated frame only. See Images.
 
@@ -98,17 +98,19 @@ No card fields and no Square secrets belong in this repo.
 
 ## Images
 
-The first hoodie image is a real front photo, `front-cutout.png`, 1024×1536, background removed. It is the hero and the only zoom source. `scripts/optimize.mjs` writes AVIF and WebP at 480, 768, and the native width. It does not upscale. Close-ups at 2000px need a new master. Zoom stops at the image's natural width.
+The first hoodie image is a real front photo, `front-cutout.png`, background removed. Transparent padding is trimmed. Garment pixels stay. It is the hero and the only zoom source. `scripts/optimize.mjs` writes AVIF and WebP at 160, 480, 768, and 1024. It does not upscale. Close-ups at 2000px need a new master. Zoom stops at the image's natural width.
 
-Back, side, and the three-quarter thumbnail are renders. Set `render` to true on each. The page prints "Render, final may vary" on that image and the alt text starts with "Render:". The three-quarter frame is a small thumbnail. It is not the hero and it does not zoom. Do not describe a generated frame as a photograph of the finished garment.
+Back, side, and the three-quarter view are renders. Set `render` to true on each. The page prints "Render, final may vary" on that image and the alt text starts with "Render:". Three-quarter is a view radio, the same kind as Front, Back, and Side. It is not the hero and it does not zoom. Do not describe a generated frame as a photograph of the finished garment. The PNG masters for those renders are not in the repo.
 
-The 3D view is a control labeled "3D view". It loads `/vendor/model-viewer.min.js` and `hoodie-3d.glb` only after that control is chosen. The script is self-hosted. `environment-image` is `neutral`, so the viewer does not fetch a remote HDR. The GLB uses WebP textures and does not need Draco, meshopt, or a KTX2 transcoder. If WebGL is missing, the same control shows the turntable one frame at a time. Nothing in that view auto-rotates. Arrow keys orbit the model, or step the frames, and the focus ring stays visible.
+The 3D view is a control labeled "3D view". It loads `/vendor/model-viewer.min.js` and `hoodie-3d.glb` only after that control is chosen. While it loads, the slot says "Loading 3D view." If the file fails, it says "3D view did not load." with Retry. The script is self-hosted. `environment-image` is `neutral`, so the viewer does not fetch a remote HDR. The GLB is meshopt-compressed and still uses WebP textures. The meshopt decoder is self-hosted at `/vendor/meshopt_decoder.js`. There is no Draco or KTX2 decoder, and the page does not use gstatic. The camera opens on the front. If WebGL is missing, the same control shows the turntable, 24 frames at about 800px, one frame at a time. Nothing in that view auto-rotates. Arrow keys orbit the model, or step the frames, and the focus ring stays visible. `reveal="immediate"` is not used.
+
+`npm run build` copies a media file into `dist/` only when a built page references it. With `products.json` empty, the 3D model, turntable, and render views stay out of `dist/`. The home page still uses the front photo. Shop cards show `From` plus the lowest size price, and they do not show a Total line.
 
 ## What to provide before launch
 
 - Logo file, if the typed wordmark should be replaced
 - A product name for every hoodie that ships. `check-dist` rejects a blank name.
-- Sizes, and one Square payment link per size. Do not add a shipping line item. The buyer pays $85.00.
+- One Square payment link per size. Do not add a shipping line item. The link amount is that size's price: $85.00, $90.00, or $95.00.
 - Contact email or Instagram, before the Contact page should appear
 - About text, if any
 - Ship window, refund policy, cancel policy, returns policy, delay policy, and a contact email or Instagram, before Pre-order or Buy now can turn on

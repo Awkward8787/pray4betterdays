@@ -1,6 +1,7 @@
-import { readdirSync, readFileSync, statSync } from "node:fs"
-import { extname, join, sep } from "node:path"
+import { readFileSync } from "node:fs"
+import { extname, join } from "node:path"
 import { missingProductNames } from "../src/lib/catalog"
+import { unreferencedMedia, walk } from "./media-files"
 
 const root = process.cwd()
 const site = JSON.parse(readFileSync(join(root, "src/data/site.json"), "utf8")) as {
@@ -15,32 +16,26 @@ if (!Array.isArray(products) || productsRaw !== "[]") failures.push("src/data/pr
 for (const failure of missingProductNames(Array.isArray(products) ? products : [])) failures.push(failure)
 
 const textExt = new Set([".html", ".css", ".js", ".svg", ".xml", ".txt", ".json"])
-const needles = ["FIXTURE_SENTINEL_DO_NOT_SHIP", "sq0atp", "EAAA", "sk_live", "[tax]"]
+const needles = ["FIXTURE_SENTINEL_DO_NOT_SHIP", "sq0atp", "sk_live", "[tax]"]
+const squareToken = /(?<![A-Za-z0-9+/])EAAA[A-Za-z0-9_-]{8,}/
 const locationId = (site.squareLocationId ?? "").trim()
 if (locationId) needles.push(locationId)
 
-function walk(dir: string): string[] {
-  const out: string[] = []
-  for (const name of readdirSync(dir)) {
-    const file = join(dir, name)
-    if (statSync(file).isDirectory()) out.push(...walk(file))
-    else out.push(file)
-  }
-  return out
-}
-
-for (const file of walk(join(root, "dist"))) {
-  const name = file.slice(join(root, "dist").length)
+const dist = join(root, "dist")
+for (const file of walk(dist)) {
+  const name = file.slice(dist.length)
   const ext = extname(file).toLowerCase()
   if (ext !== "" && !textExt.has(ext) && !name.endsWith(".htaccess")) continue
   if (ext === "" && !name.endsWith(".htaccess")) continue
-  // The vendored model-viewer build is a third-party file. Its minified source
-  // can collide with a secret prefix, and this model does not load its decoders.
-  if (name.includes(`${sep}vendor${sep}`)) continue
   const text = readFileSync(file, "utf8")
   for (const needle of needles) {
     if (text.includes(needle)) failures.push(`${file} contains ${needle}`)
   }
+  if (squareToken.test(text)) failures.push(`${file} contains EAAA`)
+}
+
+for (const rel of unreferencedMedia(dist)) {
+  failures.push(`${rel} is not used by a page in dist`)
 }
 
 if (failures.length) {
