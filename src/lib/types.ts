@@ -21,9 +21,15 @@ export interface SizeOption {
   label: string
   sku: string
   checkoutUrl: string
-  /** Cents for this size. Null falls back to the base price. */
+  /** Cents for this size. Null falls back to the color price. */
   priceCents?: number | null
-  /** Square Payment Link for this size. Null until the link exists. */
+  /**
+   * Square Payment Link for this size.
+   * When the field is present, including "" or null, it is the only checkout url.
+   * Omit it to keep the older paymentLink / checkoutUrl fallback.
+   */
+  squareUrl?: string | null
+  /** Older Square Payment Link. Ignored when squareUrl is present. */
   paymentLink?: string | null
   /** Units left. 0 is sold out. Null means the count is not in yet. */
   remaining?: number | null
@@ -112,9 +118,9 @@ export interface Site {
   currency: string
   shippingCost: string
   /**
-   * True when the size price already includes tax.
-   * False when Square adds tax on top.
-   * Null until that is known. Preview shows [tax] and does not guess.
+   * True hides the tax line. The total is the size price. The page does not claim that tax is included.
+   * False prints "plus tax" on the total.
+   * Null prints [tax] in preview and does not guess. check-dist rejects [tax] in dist.
    */
   taxIncluded: boolean | null
   sizes: ConfigSize[]

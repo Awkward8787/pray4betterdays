@@ -244,7 +244,7 @@ function group(product: Product, color: Colorway, site: Site, now: Date): string
       const ship = amount ? shippingCostMarkup(site) : ""
       const tax = amount ? taxMarkup(site) : ""
       const disclosure = states[index].kind === "link" && states[index].label === "Pre-order" ? presaleCopy(product, site) : ""
-      return `<div class="offer">${price}${ship}${total}${tax}${disclosure}<label class="size"${state}><input class="size-input" type="radio" name="size-${esc(color.id)}" value="${esc(size.id)}"${checked}${disabled}${priceAttr}><span>${esc(size.label)}</span>${note}${sku}</label>${ctaMarkup(states[index], size.id)}</div>`
+      return `<div class="offer">${price}${ship}${total}${tax}<label class="size"${state}><input class="size-input" type="radio" name="size-${esc(color.id)}" value="${esc(size.id)}"${checked}${disabled}${priceAttr}><span>${esc(size.label)}</span>${note}${sku}</label>${disclosure}${ctaMarkup(states[index], size.id)}</div>`
     })
     .join("")
   const fallbackCta = states[0] ?? { kind: "disabled" as const, label: "Coming soon" as const }
@@ -259,13 +259,12 @@ function group(product: Product, color: Colorway, site: Site, now: Date): string
 
 function presaleCopy(product: Product, site: Site): string {
   const end = product.presaleEndsAt ? formatEndDate(product.presaleEndsAt, site.timeZone) : null
-  const ship = product.shipEstimate.trim()
-    ? `<p class="ship">Ship window: ${esc(product.shipEstimate.trim())}</p>`
-    : ""
+  const terms = [product.shipEstimate.trim(), site.cancelPolicy.trim()].filter(Boolean).join(" ")
+  const sentence = terms ? `Pre-order. ${terms}` : "Pre-order."
   const until = end ? `<p class="end">Pre-order ends <time datetime="${esc(product.presaleEndsAt ?? "")}">${esc(end)}</time>.</p>` : ""
   return `<div class="notes">
-    <p class="note"><a class="text-link" href="/shipping/">This is a pre-order. The card is charged now through Square.</a></p>
-    ${ship}
+    <p class="note">${esc(sentence)}</p>
+    <p class="note"><a class="text-link" href="/shipping/">Your card is charged when you place the pre-order.</a></p>
     ${until}
   </div>`
 }
@@ -342,7 +341,7 @@ function cardState(product: Product, site: Site, now: Date): string {
   return ""
 }
 
-function catalog(products: Product[], site: Site, now: Date): string {
+function catalog(products: Product[], site: Site, now: Date, eagerLead = true): string {
   if (!products.length) {
     const links = reachLinks(site)
     const reach = links.length
@@ -350,7 +349,7 @@ function catalog(products: Product[], site: Site, now: Date): string {
       : ""
     return `<section class="empty"><h2>First drop coming soon.</h2>${reach}</section>`
   }
-  return `<div class="catalog">${products.map((product, index) => card(product, site, now, index === 0)).join("")}</div>`
+  return `<div class="catalog">${products.map((product, index) => card(product, site, now, eagerLead && index === 0)).join("")}</div>`
 }
 
 function sizeGuide(site: Site): string {
@@ -447,20 +446,49 @@ function documentPage(ctx: Ctx, opts: { title: string; description: string; path
   return { status: opts.status ?? 200, html }
 }
 
+function heroTurntable(product: Product): string {
+  const spin = product.colors[0]?.model?.spin
+  if (!spin || spin.count < 1 || !spin.prefix.trim()) return ""
+  const frames = framePaths(spin.prefix, spin.count)
+  const first = frames[0]
+  if (!first) return ""
+  const href = productPath(product.slug)
+  const items = frames
+    .map((src) => `<li data-frame data-src="${esc(src)}" data-alt="${esc(spin.alt)}" data-render="true"></li>`)
+    .join("")
+  return `<div class="hero-spin spin" data-spin role="region" aria-roledescription="carousel" aria-label="Product views" tabindex="0">
+    <div class="spin-frame" data-watch>
+      <a href="${esc(href)}"><img data-spin-view src="${esc(first)}" alt="${esc(spin.alt)}" width="${spin.width}" height="${spin.height}"></a>
+    </div>
+    <span class="render-label">${esc(RENDER_NOTE)}</span>
+    <div class="spin-controls">
+      <button type="button" class="button secondary" data-spin-prev>${iconPrev} Previous frame</button>
+      <button type="button" class="button secondary" data-spin-next>${iconNext} Next frame</button>
+    </div>
+    <ol hidden>${items}</ol>
+  </div>`
+}
+
 function home(ctx: Ctx): string {
-  const hero = ctx.hero ? zoomButton(ctx.hero, true, HERO_SIZES) : ""
+  const featured = ctx.products[0]
+  const turntable = featured ? heroTurntable(featured) : ""
+  const hero = turntable || (ctx.hero ? zoomButton(ctx.hero, true, HERO_SIZES) : "")
   const links = ctx.products.length ? [] : reachLinks(ctx.site)
   const reach = links.length
     ? `<p class="reach">${links.map((link) => `<a class="text-link" href="${esc(link.href)}">${esc(link.label)}</a>`).join("")}</p>`
     : ""
   const note = ctx.products.length ? "" : `<div class="hero-note"><p>First drop coming soon.</p>${reach}</div>`
+  const lead = featured
+    ? `<p class="hero-product"><a class="text-link" href="${esc(productPath(featured.slug))}">${esc(productLabel(featured).text)}</a></p><p><a class="button" href="${esc(productPath(featured.slug))}">Pre-order</a></p>`
+    : ""
   const shop = ctx.products.length ? `<p><a class="button" href="/shop/">Shop hoodies</a></p>` : ""
   const drop = ctx.products.length
-    ? `<section class="drop"><h2>Current drop</h2>${catalog(ctx.products, ctx.site, ctx.now)}</section>`
+    ? `<section class="drop"><h2>Current drop</h2>${catalog(ctx.products, ctx.site, ctx.now, false)}</section>`
     : ""
   return `<section class="hero">
     <div class="hero-copy">
       <h1 class="display wordmark" aria-label="${esc(ctx.site.brand)}">Pray4<br>BetterDays</h1>
+      ${lead}
       ${shop}
       ${note}
     </div>

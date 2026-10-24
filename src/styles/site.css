@@ -507,9 +507,13 @@ button:disabled {
   flex: 1 0 100%;
 }
 
-.sizes .notes,
 .sizes .runs {
   order: 5;
+  flex: 1 0 100%;
+}
+
+.sizes .notes {
+  order: 8;
   flex: 1 0 100%;
 }
 
@@ -536,7 +540,7 @@ button:disabled {
 }
 
 .sizes .buy-link {
-  order: 8;
+  order: 9;
   flex: 1 0 100%;
 }
 
@@ -762,6 +766,28 @@ label:focus-within {
   justify-items: center;
 }
 
+.spin-frame a {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.hero .spin {
+  order: -1;
+  min-width: 0;
+  justify-self: center;
+}
+
+.hero .spin img {
+  width: auto;
+  max-width: 100%;
+  max-height: var(--hero-media);
+}
+
+.hero-spin > .render-label {
+  position: static;
+}
+
 .spin img {
   width: 100%;
   max-height: var(--spin-media);
@@ -923,12 +949,15 @@ dialog::backdrop {
     align-content: space-between;
   }
 
-  .hero .stage {
+  .hero .stage,
+  .hero .spin {
+    order: 0;
     grid-column: 2;
     grid-row: 1;
   }
 
-  .hero .stage img {
+  .hero .stage img,
+  .hero .spin img {
     max-height: var(--media-max);
   }
 

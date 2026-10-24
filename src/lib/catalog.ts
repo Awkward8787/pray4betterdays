@@ -43,14 +43,7 @@ export function contactReady(site: Site): boolean {
 }
 
 export function preorderTermsReady(product: Product, site: Site): boolean {
-  return Boolean(
-    product.shipEstimate.trim() &&
-      site.refundPolicy.trim() &&
-      site.cancelPolicy.trim() &&
-      site.returnsBody.trim() &&
-      site.delayPolicy.trim() &&
-      contactReady(site),
-  )
+  return Boolean(product.shipEstimate.trim() && site.refundPolicy.trim() && site.cancelPolicy.trim())
 }
 
 export function missingProductNames(products: { name?: string }[]): string[] {
@@ -91,6 +84,7 @@ export function colorBlocked(color: Colorway): boolean {
 }
 
 export function sizeCheckout(size: SizeOption): string {
+  if ("squareUrl" in size && size.squareUrl !== undefined) return (size.squareUrl ?? "").trim()
   const link = size.paymentLink?.trim() ?? ""
   if (link) return link
   return size.checkoutUrl ?? ""
