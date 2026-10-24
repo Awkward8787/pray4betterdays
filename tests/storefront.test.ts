@@ -16,6 +16,7 @@ import {
 } from "../src/lib/catalog"
 import { framePaths } from "../src/lib/frames"
 import { renderRoute, type Ctx } from "../src/lib/render"
+import { missingFrameFailures } from "../scripts/check-dist"
 import { mediaRefs, missingReferencedFrames, pruneUnreferencedMedia } from "../scripts/media-files"
 import type { Colorway, Product, Shot, Site } from "../src/lib/types"
 import black from "../src/data/black.json"
@@ -578,16 +579,25 @@ describe("pages", () => {
     expect(html).toContain("Three-quarter")
     expect(html).toContain('value="three-quarter"')
     expect(html).toContain("Loading 3D view.")
-    expect(html).toContain("3D view did not load.")
-    expect(html).toContain('role="status"')
+    expect(html).toContain('data-model-status')
+    expect(html.match(/role="status"/g)).toEqual(['role="status"'])
+    const statusAt = html.indexOf('<p class="model-status"')
+    const statusHtml = html.slice(statusAt, html.indexOf("</p>", statusAt))
+    expect(statusHtml).toContain("Loading 3D view.")
+    expect(statusHtml).not.toContain("hidden")
+    expect(statusHtml).not.toContain("button")
+    expect(html.indexOf("data-model-retry")).toBeGreaterThan(html.indexOf("</p>", statusAt))
+    expect(client).toContain("3D view did not load.")
     expect(html).toContain("Arrow keys rotate.")
     expect(html).toContain('class="size-label"')
     expect(html).toContain("data-model-retry")
-    expect(html).toContain('sizes="256px"')
+    expect(html).toContain("min(calc(100vw - 2.5rem - 80px), calc(45vh * 1360 / 2048))")
+    expect(html).toContain("min(calc((100vw - 5rem - 1.25rem) * 1.25 / 2 - 80px), calc(48vh * 1360 / 2048))")
+    expect(html).not.toContain('sizes="256px"')
     const frontAt = html.indexOf('data-view="front"')
     const frontHtml = html.slice(frontAt, html.indexOf('data-view="back"'))
     expect(frontHtml).toContain("min(100vw, 42vh)")
-    expect(frontHtml).not.toContain('sizes="256px"')
+    expect(frontHtml).not.toContain("80px")
     expect(html).toContain("Render, final may vary")
     expect(html).not.toContain("model-viewer.min.js")
     expect(html).not.toContain("<model-viewer")
@@ -667,8 +677,27 @@ describe("pages", () => {
         expect(dropped).not.toContain(frame)
       }
       expect(missingReferencedFrames(root)).toEqual([])
-      rmSync(join(root, frames[0].slice(1)))
-      expect(missingReferencedFrames(root)).toContain(frames[0])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it("reports only a missing referenced frame from the dist check", () => {
+    const root = mkdtempSync(join(tmpdir(), "p4bd-missing-frame-"))
+    const prefix = "/media/first-design/black/turntable/frame-"
+    const frames = framePaths(prefix, 2)
+    try {
+      mkdirSync(join(root, "shop/fixture"), { recursive: true })
+      writeFileSync(
+        join(root, "shop/fixture/index.html"),
+        `<div data-frame-prefix="${prefix}" data-frame-count="2"></div>`,
+      )
+      const present = join(root, frames[1].slice(1))
+      mkdirSync(dirname(present), { recursive: true })
+      writeFileSync(present, "")
+      expect(missingFrameFailures(root)).toEqual([`${frames[0]} is referenced but missing from dist`])
+      writeFileSync(join(root, frames[0].slice(1)), "")
+      expect(missingFrameFailures(root)).toEqual([])
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
