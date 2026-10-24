@@ -37,8 +37,6 @@ export interface Ctx {
 // The height caps are 45vh and 60vh on the hero, and 45vh / 48vh on the product. The trimmed front is about 0.92 wide per tall.
 const HERO_SIZES = "(min-width: 960px) min(50vw, 55vh), min(100vw, 42vh)" // ds-allow-hardcode
 const GALLERY_SIZES = "(min-width: 960px) min(58vw, 44vh), min(100vw, 42vh)" // ds-allow-hardcode
-// Portrait renders stay under the height cap, so their width stays within 256px. 256px at 3x is w768.
-const RENDER_SIZES = "256px" // ds-allow-hardcode
 const CARD_SIZES = "(min-width: 720px) 40vw, 100vw" // ds-allow-hardcode
 
 const NAV = [
@@ -81,6 +79,14 @@ function picture(shot: Shot, opts: { eager: boolean; sizes: string; alt: string 
   const avifSource = avif ? `<source type="image/avif" srcset="${avif}" sizes="${opts.sizes}">` : ""
   const webpSource = webp ? `<source type="image/webp" srcset="${webp}" sizes="${opts.sizes}">` : ""
   return `<picture>${avifSource}${webpSource}<img src="${esc(fallback)}" alt="${esc(opts.alt)}" width="${shot.width}" height="${shot.height}" loading="${loading}" decoding="async"${priority}></picture>`
+}
+
+// Render stills are width 100% of the figure. The figure keeps a 40px margin on each side.
+// From 960px that figure sits in the 1.25fr gallery column.
+function renderSizes(): string {
+  const mobile = "calc(100vw - 2.5rem - 80px)" // ds-allow-hardcode
+  const desktop = "calc((100vw - 5rem - 1.25rem) * 1.25 / 2 - 80px)" // ds-allow-hardcode
+  return `(min-width: 960px) ${desktop}, ${mobile}` // ds-allow-hardcode
 }
 
 function renderBadge(shot: Shot, extra = ""): string {
@@ -166,7 +172,7 @@ function viewsFor(color: Colorway): { id: string; label: string; shot: Shot | nu
 function modelSlot(model: ModelView): string {
   const spin = model.spin
   const frames = framePaths(spin.prefix, spin.count)
-  return `<div class="model-block"><div class="stage model-slot" data-model tabindex="0" role="region" aria-label="${esc(model.alt)}" aria-busy="true" data-src="${esc(model.src)}" data-alt="${esc(model.alt)}" data-frame-prefix="${esc(spin.prefix)}" data-frame-count="${frames.length}" data-frame-w="${spin.width}" data-frame-h="${spin.height}" data-frame-alt="${esc(spin.alt)}"><p class="model-status" data-model-loading role="status">Loading 3D view.</p><p class="model-status" data-model-error role="status" hidden><span>3D view did not load.</span> <button type="button" class="button secondary" data-model-retry>Retry</button></p><span class="render-label">${esc(RENDER_NOTE)}</span></div><p class="model-hint">Arrow keys rotate.</p></div>`
+  return `<div class="model-block"><div class="stage model-slot" data-model tabindex="0" role="region" aria-label="${esc(model.alt)}" aria-busy="true" data-src="${esc(model.src)}" data-alt="${esc(model.alt)}" data-frame-prefix="${esc(spin.prefix)}" data-frame-count="${frames.length}" data-frame-w="${spin.width}" data-frame-h="${spin.height}" data-frame-alt="${esc(spin.alt)}"><div class="model-bar"><p class="model-status" data-model-status role="status">Loading 3D view.</p><button type="button" class="button secondary" data-model-retry hidden>Retry</button></div></div><span class="render-label">${esc(RENDER_NOTE)}</span><p class="model-hint">Arrow keys rotate.</p></div>`
 }
 
 function spinBlock(frames: Shot[]): string {
@@ -201,7 +207,7 @@ function panel(color: Colorway): string {
       const tab = only
         ? ""
         : `<label class="view-tab">${view.label}<input class="view-input" type="radio" name="view-${esc(color.id)}" value="${esc(view.id)}"${index === 0 ? " checked" : ""}></label>`
-      const sizes = view.shot?.render ? RENDER_SIZES : GALLERY_SIZES
+      const sizes = view.shot?.render ? renderSizes() : GALLERY_SIZES
       const body = view.id === "model" && color.model ? modelSlot(color.model) : view.shot ? still(view.shot, view.id === "front", sizes) : ""
       return `<div class="view-block">${tab}<div class="view${only ? " is-only" : ""}" data-view="${esc(view.id)}">${body}</div></div>`
     })

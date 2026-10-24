@@ -304,11 +304,17 @@ function mountTurntable(slot: HTMLElement): void {
   bindSpinRegion(region)
 }
 
+const MODEL_STATUS = {
+  loading: "Loading 3D view.",
+  error: "3D view did not load.",
+  ready: "",
+} as const
+
 function showModelStatus(slot: HTMLElement, mode: "loading" | "error" | "ready"): void {
-  const loading = slot.querySelector<HTMLElement>("[data-model-loading]")
-  const error = slot.querySelector<HTMLElement>("[data-model-error]")
-  if (loading) loading.hidden = mode !== "loading"
-  if (error) error.hidden = mode !== "error"
+  const status = slot.querySelector<HTMLElement>("[data-model-status]")
+  if (status) status.textContent = MODEL_STATUS[mode]
+  const retry = slot.querySelector<HTMLButtonElement>("[data-model-retry]")
+  if (retry) retry.hidden = mode !== "error"
   if (mode === "loading") slot.setAttribute("aria-busy", "true")
   else slot.removeAttribute("aria-busy")
 }

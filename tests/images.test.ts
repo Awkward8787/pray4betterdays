@@ -46,7 +46,7 @@ describe("image errors", () => {
   })
 
   it("loads the 3D view only after the toggle", () => {
-    document.body.innerHTML = `<div class="panel"><label class="view-tab">3D view<input class="view-input" type="radio" value="model"></label><div class="model-slot" data-model tabindex="0" data-src="/media/first-design/black/hoodie-3d.glb" data-alt="Render: 3D model" data-frame-prefix="/media/first-design/black/turntable/frame-" data-frame-count="24" data-frame-w="800" data-frame-h="800" data-frame-alt="Render: 360 degree spin"><p data-model-loading>Loading 3D view.</p><p data-model-error hidden><span>3D view did not load.</span> <button type="button" data-model-retry>Retry</button></p></div></div>`
+    document.body.innerHTML = `<div class="panel"><label class="view-tab">3D view<input class="view-input" type="radio" value="model"></label><div class="model-slot" data-model tabindex="0" data-src="/media/first-design/black/hoodie-3d.glb" data-alt="Render: 3D model" data-frame-prefix="/media/first-design/black/turntable/frame-" data-frame-count="24" data-frame-w="800" data-frame-h="800" data-frame-alt="Render: 360 degree spin"><div class="model-bar"><p data-model-status role="status">Loading 3D view.</p><button type="button" data-model-retry hidden>Retry</button></div></div></div>`
     start()
     expect(document.querySelector('script[src="/vendor/model-viewer.min.js"]')).toBeNull()
     expect(document.querySelector("[data-spin-view]")).toBeNull()
@@ -86,7 +86,7 @@ describe("image errors", () => {
     const happy = (window as unknown as { happyDOM?: { settings: { handleDisabledFileLoadingAsSuccess: boolean } } }).happyDOM
     const previousFileLoad = happy?.settings.handleDisabledFileLoadingAsSuccess
     if (happy) happy.settings.handleDisabledFileLoadingAsSuccess = true
-    document.body.innerHTML = `<div class="panel"><label class="view-tab">3D view<input class="view-input" type="radio" value="model" checked></label><div class="model-slot" data-model tabindex="0" aria-busy="true" data-src="/media/first-design/black/hoodie-3d.glb" data-alt="Render: 3D model" data-frame-prefix="/media/first-design/black/turntable/frame-" data-frame-count="24" data-frame-w="678" data-frame-h="800" data-frame-alt="Render: 360 degree spin"><p data-model-loading>Loading 3D view.</p><p data-model-error hidden><span>3D view did not load.</span> <button type="button" data-model-retry>Retry</button></p></div></div>`
+    document.body.innerHTML = `<div class="panel"><label class="view-tab">3D view<input class="view-input" type="radio" value="model" checked></label><div class="model-slot" data-model tabindex="0" aria-busy="true" data-src="/media/first-design/black/hoodie-3d.glb" data-alt="Render: 3D model" data-frame-prefix="/media/first-design/black/turntable/frame-" data-frame-count="24" data-frame-w="678" data-frame-h="800" data-frame-alt="Render: 360 degree spin"><div class="model-bar"><p data-model-status role="status">Loading 3D view.</p><button type="button" data-model-retry hidden>Retry</button></div></div></div>`
     start()
     const input = document.querySelector("input") as HTMLInputElement
     input.dispatchEvent(new Event("change", { bubbles: true }))
@@ -102,11 +102,17 @@ describe("image errors", () => {
     expect(viewer?.getAttribute("camera-orbit")).toBe("90deg 75deg auto")
     expect(viewer?.getAttribute("reveal")).toBeNull()
     expect(viewer?.hasAttribute("auto-rotate")).toBe(false)
+    const status = document.querySelector("[role=status]") as HTMLElement
     viewer?.dispatchEvent(new Event("error"))
     expect(document.querySelector("model-viewer")).toBeNull()
-    expect(document.body.textContent).toContain("3D view did not load.")
+    expect(document.querySelector("[role=status]")).toBe(status)
+    expect(status.hidden).toBe(false)
+    expect(status.textContent).toBe("3D view did not load.")
+    expect(status.querySelector("button")).toBeNull()
     expect(document.querySelector("[data-model]")?.hasAttribute("aria-busy")).toBe(false)
     const retry = document.querySelector("[data-model-retry]") as HTMLButtonElement
+    expect(status.contains(retry)).toBe(false)
+    expect(retry.hidden).toBe(false)
     retry.click()
     await Promise.resolve()
     await Promise.resolve()
@@ -115,6 +121,11 @@ describe("image errors", () => {
     expect(again?.getAttribute("src") || "").toMatch(/^\/media\/first-design\/black\/hoodie-3d\.glb\?retry=\d+$/)
     expect(document.activeElement).toBe(document.querySelector("[data-model]"))
     expect(again?.getAttribute("reveal")).toBeNull()
+    again?.dispatchEvent(new Event("load"))
+    expect(document.querySelector("[role=status]")).toBe(status)
+    expect(status.hidden).toBe(false)
+    expect(status.textContent).toBe("")
+    expect(retry.hidden).toBe(true)
     window.matchMedia = originalMatch
     HTMLCanvasElement.prototype.getContext = originalContext
     if (happy && previousFileLoad !== undefined) happy.settings.handleDisabledFileLoadingAsSuccess = previousFileLoad
