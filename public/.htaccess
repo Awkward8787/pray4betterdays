@@ -1,0 +1,13 @@
+DirectoryIndex index.html
+Options -Indexes
+ErrorDocument 404 /404.html
+
+AddType image/avif .avif
+AddType image/webp .webp
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+</IfModule>
