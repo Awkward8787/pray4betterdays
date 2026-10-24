@@ -113,6 +113,7 @@ describe("image errors", () => {
     expect(document.querySelectorAll('script[src="/vendor/model-viewer.min.js"]').length).toBeGreaterThan(0)
     const again = document.querySelector("model-viewer")
     expect(again?.getAttribute("src") || "").toMatch(/^\/media\/first-design\/black\/hoodie-3d\.glb\?retry=\d+$/)
+    expect(document.activeElement).toBe(document.querySelector("[data-model]"))
     expect(again?.getAttribute("reveal")).toBeNull()
     window.matchMedia = originalMatch
     HTMLCanvasElement.prototype.getContext = originalContext

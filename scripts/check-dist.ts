@@ -1,7 +1,7 @@
-import { readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { extname, join } from "node:path"
 import { missingProductNames } from "../src/lib/catalog"
-import { unreferencedMedia, walk } from "./media-files"
+import { missingReferencedFrames, unreferencedMedia, walk } from "./media-files"
 
 const root = process.cwd()
 const site = JSON.parse(readFileSync(join(root, "src/data/site.json"), "utf8")) as {
@@ -36,6 +36,14 @@ for (const file of walk(dist)) {
 
 for (const rel of unreferencedMedia(dist)) {
   failures.push(`${rel} is not used by a page in dist`)
+}
+
+for (const rel of missingReferencedFrames(dist)) {
+  failures.push(`${rel} is referenced but missing from dist`)
+}
+
+if (productsRaw === "[]" && existsSync(join(dist, "vendor"))) {
+  failures.push("dist/vendor is present while the catalog is empty")
 }
 
 if (failures.length) {

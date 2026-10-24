@@ -1,4 +1,4 @@
-import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { mediaRefs } from "./media-files"
 import { renderRoute, type Assets } from "../src/lib/render"
@@ -56,7 +56,10 @@ const fixture: Product = {
   ],
 }
 
+rmSync(preview, { recursive: true, force: true })
 cpSync(dist, preview, { recursive: true })
+const vendor = join(root, "public/vendor")
+if (existsSync(vendor)) cpSync(vendor, join(preview, "vendor"), { recursive: true })
 const ctx = { site, products: [fixture], hero, now: new Date("2026-10-24T12:00:00.000Z"), assets }
 
 function writePage(route: string, file: string): void {

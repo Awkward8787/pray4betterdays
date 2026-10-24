@@ -6,10 +6,6 @@
     "zoom": "/media/first-design/black/front-cutout.png",
     "avif": [
       {
-        "src": "/media/first-design/black/front/w160.avif",
-        "width": 160
-      },
-      {
         "src": "/media/first-design/black/front/w480.avif",
         "width": 480
       },
@@ -23,10 +19,6 @@
       }
     ],
     "webp": [
-      {
-        "src": "/media/first-design/black/front/w160.webp",
-        "width": 160
-      },
       {
         "src": "/media/first-design/black/front/w480.webp",
         "width": 480
@@ -48,10 +40,6 @@
     "zoom": "",
     "avif": [
       {
-        "src": "/media/first-design/black/back/w160.avif",
-        "width": 160
-      },
-      {
         "src": "/media/first-design/black/back/w480.avif",
         "width": 480
       },
@@ -65,10 +53,6 @@
       }
     ],
     "webp": [
-      {
-        "src": "/media/first-design/black/back/w160.webp",
-        "width": 160
-      },
       {
         "src": "/media/first-design/black/back/w480.webp",
         "width": 480
@@ -91,10 +75,6 @@
     "zoom": "",
     "avif": [
       {
-        "src": "/media/first-design/black/side/w160.avif",
-        "width": 160
-      },
-      {
         "src": "/media/first-design/black/side/w480.avif",
         "width": 480
       },
@@ -108,10 +88,6 @@
       }
     ],
     "webp": [
-      {
-        "src": "/media/first-design/black/side/w160.webp",
-        "width": 160
-      },
       {
         "src": "/media/first-design/black/side/w480.webp",
         "width": 480
@@ -134,10 +110,6 @@
     "zoom": "",
     "avif": [
       {
-        "src": "/media/first-design/black/support/w160.avif",
-        "width": 160
-      },
-      {
         "src": "/media/first-design/black/support/w480.avif",
         "width": 480
       },
@@ -151,10 +123,6 @@
       }
     ],
     "webp": [
-      {
-        "src": "/media/first-design/black/support/w160.webp",
-        "width": 160
-      },
       {
         "src": "/media/first-design/black/support/w480.webp",
         "width": 480

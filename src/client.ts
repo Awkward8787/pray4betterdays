@@ -1,3 +1,4 @@
+import { framePath } from "./lib/frames"
 import { iconBan, iconNext, iconPrev } from "./lib/icons"
 
 export function fittedZoomWidth(stageWidth: number, naturalWidth: number): number {
@@ -251,7 +252,7 @@ function pointDecoder(): void {
 }
 
 function frameSrc(prefix: string, index: number): string {
-  return `${prefix}${String(index).padStart(2, "0")}.webp`
+  return framePath(prefix, index)
 }
 
 function mountTurntable(slot: HTMLElement): void {
@@ -376,6 +377,7 @@ function retryModel(slot: HTMLElement): void {
   const base = (slot.dataset.src || "").split("?")[0]
   if (base) slot.dataset.src = `${base}?retry=${Date.now()}`
   void activateModel(slot)
+  slot.focus()
 }
 
 function bindModels(): void {

@@ -5,7 +5,7 @@ import sharp from "sharp"
 const root = new URL("..", import.meta.url).pathname
 const mediaRoot = join(root, "public/media/first-design/black")
 const blackPath = join(root, "src/data/black.json")
-const widths = [160, 480, 768, 1024]
+const widths = [480, 768, 1024]
 
 const jobs = [
   {
@@ -125,7 +125,14 @@ const shots = {}
 for (const job of jobs) {
   const file = join(mediaRoot, job.file)
   if (!existsSync(file)) {
-    if (previous[job.id]) shots[job.id] = previous[job.id]
+    if (previous[job.id]) {
+      const kept = previous[job.id]
+      shots[job.id] = {
+        ...kept,
+        avif: (kept.avif || []).filter((file) => file.width !== 160),
+        webp: (kept.webp || []).filter((file) => file.width !== 160),
+      }
+    }
     console.log(`kept ${job.id} derivatives`)
     continue
   }

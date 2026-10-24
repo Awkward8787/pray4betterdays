@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs"
 import { extname, join, relative, sep } from "node:path"
+import { framePaths } from "../src/lib/frames"
 
 const textExt = new Set([".html", ".css", ".js", ".svg", ".xml", ".txt", ".json"])
 
@@ -15,7 +16,11 @@ export function walk(dir: string): string[] {
 }
 
 export function mediaRefs(text: string): string[] {
-  return [...text.matchAll(/\/media\/[A-Za-z0-9_./-]+/g)].map((match) => match[0])
+  const refs = [...text.matchAll(/\/media\/[A-Za-z0-9_./-]+\.[A-Za-z0-9]+/g)].map((match) => match[0])
+  for (const match of text.matchAll(/data-frame-prefix="([^"]*)"[^>]*data-frame-count="(\d+)"/g)) {
+    refs.push(...framePaths(match[1], Number(match[2])))
+  }
+  return [...new Set(refs)]
 }
 
 function isText(file: string, root: string): boolean {
@@ -51,6 +56,15 @@ function removeEmpty(dir: string): void {
     if (statSync(file).isDirectory()) removeEmpty(file)
   }
   if (existsSync(dir) && statSync(dir).isDirectory() && readdirSync(dir).length === 0) rmSync(dir, { recursive: true })
+}
+
+export function missingReferencedFrames(root: string): string[] {
+  const missing: string[] = []
+  for (const ref of referencedMedia(root)) {
+    if (!/\/frame-\d{2}\.webp$/.test(ref)) continue
+    if (!existsSync(join(root, ref.slice(1)))) missing.push(ref)
+  }
+  return missing
 }
 
 export function pruneUnreferencedMedia(root: string): string[] {

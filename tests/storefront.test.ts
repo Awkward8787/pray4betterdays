@@ -1,5 +1,6 @@
-import { readdirSync, readFileSync, statSync } from "node:fs"
-import { join } from "node:path"
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { dirname, join } from "node:path"
 import { describe, expect, it } from "vitest"
 import { fittedZoomWidth, zoomDisplayWidth } from "../src/client"
 import {
@@ -13,7 +14,9 @@ import {
   sizeCta,
   sizePriceCents,
 } from "../src/lib/catalog"
+import { framePaths } from "../src/lib/frames"
 import { renderRoute, type Ctx } from "../src/lib/render"
+import { mediaRefs, missingReferencedFrames, pruneUnreferencedMedia } from "../scripts/media-files"
 import type { Colorway, Product, Shot, Site } from "../src/lib/types"
 import black from "../src/data/black.json"
 import hero from "../src/data/media.json"
@@ -547,7 +550,8 @@ describe("pages", () => {
     expect(black.model.alt.toLowerCase()).not.toContain("arrow")
     expect(black.model.spin.count).toBe(24)
     expect(JSON.stringify(black)).not.toContain("w1360")
-    expect(black.front.webp.some((file) => file.width === 160)).toBe(true)
+    expect(JSON.stringify(black)).not.toContain("w160")
+    expect(black.front.webp.some((file) => file.width === 480)).toBe(true)
     const client = readFileSync(join("src/client.ts"), "utf8")
     expect(client).not.toContain('reveal", "immediate"')
     expect(client).not.toContain('reveal="immediate"')
@@ -575,7 +579,15 @@ describe("pages", () => {
     expect(html).toContain('value="three-quarter"')
     expect(html).toContain("Loading 3D view.")
     expect(html).toContain("3D view did not load.")
+    expect(html).toContain('role="status"')
+    expect(html).toContain("Arrow keys rotate.")
+    expect(html).toContain('class="size-label"')
     expect(html).toContain("data-model-retry")
+    expect(html).toContain('sizes="256px"')
+    const frontAt = html.indexOf('data-view="front"')
+    const frontHtml = html.slice(frontAt, html.indexOf('data-view="back"'))
+    expect(frontHtml).toContain("min(100vw, 42vh)")
+    expect(frontHtml).not.toContain('sizes="256px"')
     expect(html).toContain("Render, final may vary")
     expect(html).not.toContain("model-viewer.min.js")
     expect(html).not.toContain("<model-viewer")
@@ -618,5 +630,47 @@ describe("pages", () => {
     expect(card).not.toContain("Total")
     expect(card).not.toContain("<span><p")
     expect(card).not.toContain("<span class=\"card-copy\">")
+  })
+
+  it("keeps frame-00 through frame-23 in dist for a listed product", () => {
+    const item = product({
+      colors: [
+        color({
+          images: { front: black.front, back: black.back, side: black.side, details: [black.support] },
+          model: black.model,
+        }),
+      ],
+    })
+    const html = page(`/shop/${item.slug}/`, [item])
+    const frames = framePaths(black.model.spin.prefix, black.model.spin.count)
+    expect(frames).toHaveLength(24)
+    expect(frames[0]).toBe("/media/first-design/black/turntable/frame-00.webp")
+    expect(frames[23]).toBe("/media/first-design/black/turntable/frame-23.webp")
+    expect(html).not.toContain('src="/media/first-design/black/turntable/frame-00.webp"')
+    for (const frame of frames) expect(mediaRefs(html)).toContain(frame)
+    const root = mkdtempSync(join(tmpdir(), "p4bd-dist-"))
+    try {
+      mkdirSync(join(root, "shop/fixture-hoodie"), { recursive: true })
+      writeFileSync(join(root, "shop/fixture-hoodie/index.html"), html)
+      for (const frame of frames) {
+        const file = join(root, frame.slice(1))
+        mkdirSync(dirname(file), { recursive: true })
+        writeFileSync(file, "")
+      }
+      const unused = join(root, "media/unused.webp")
+      mkdirSync(dirname(unused), { recursive: true })
+      writeFileSync(unused, "")
+      const dropped = pruneUnreferencedMedia(root)
+      expect(dropped).toContain("/media/unused.webp")
+      for (const frame of frames) {
+        expect(existsSync(join(root, frame.slice(1)))).toBe(true)
+        expect(dropped).not.toContain(frame)
+      }
+      expect(missingReferencedFrames(root)).toEqual([])
+      rmSync(join(root, frames[0].slice(1)))
+      expect(missingReferencedFrames(root)).toContain(frames[0])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 })

@@ -17,6 +17,7 @@ import {
   sizeSoldOut,
 } from "./catalog"
 import { iconBan, iconClose, iconMenu, iconNext, iconPrev, iconZoom } from "./icons"
+import { framePaths } from "./frames"
 import type { Cta, Colorway, ModelView, Product, Shot, Site } from "./types"
 
 export interface Assets {
@@ -36,6 +37,8 @@ export interface Ctx {
 // The height caps are 45vh and 60vh on the hero, and 45vh / 48vh on the product. The trimmed front is about 0.92 wide per tall.
 const HERO_SIZES = "(min-width: 960px) min(50vw, 55vh), min(100vw, 42vh)" // ds-allow-hardcode
 const GALLERY_SIZES = "(min-width: 960px) min(58vw, 44vh), min(100vw, 42vh)" // ds-allow-hardcode
+// Portrait renders stay under the height cap, so their width stays within 256px. 256px at 3x is w768.
+const RENDER_SIZES = "256px" // ds-allow-hardcode
 const CARD_SIZES = "(min-width: 720px) 40vw, 100vw" // ds-allow-hardcode
 
 const NAV = [
@@ -162,7 +165,8 @@ function viewsFor(color: Colorway): { id: string; label: string; shot: Shot | nu
 
 function modelSlot(model: ModelView): string {
   const spin = model.spin
-  return `<div class="stage model-slot" data-model tabindex="0" role="region" aria-label="${esc(model.alt)}" aria-busy="true" data-src="${esc(model.src)}" data-alt="${esc(model.alt)}" data-frame-prefix="${esc(spin.prefix)}" data-frame-count="${spin.count}" data-frame-w="${spin.width}" data-frame-h="${spin.height}" data-frame-alt="${esc(spin.alt)}"><p class="model-status" data-model-loading>Loading 3D view.</p><p class="model-status" data-model-error hidden><span>3D view did not load.</span> <button type="button" class="button secondary" data-model-retry>Retry</button></p><span class="render-label">${esc(RENDER_NOTE)}</span></div>`
+  const frames = framePaths(spin.prefix, spin.count)
+  return `<div class="model-block"><div class="stage model-slot" data-model tabindex="0" role="region" aria-label="${esc(model.alt)}" aria-busy="true" data-src="${esc(model.src)}" data-alt="${esc(model.alt)}" data-frame-prefix="${esc(spin.prefix)}" data-frame-count="${frames.length}" data-frame-w="${spin.width}" data-frame-h="${spin.height}" data-frame-alt="${esc(spin.alt)}"><p class="model-status" data-model-loading role="status">Loading 3D view.</p><p class="model-status" data-model-error role="status" hidden><span>3D view did not load.</span> <button type="button" class="button secondary" data-model-retry>Retry</button></p><span class="render-label">${esc(RENDER_NOTE)}</span></div><p class="model-hint">Arrow keys rotate.</p></div>`
 }
 
 function spinBlock(frames: Shot[]): string {
@@ -197,7 +201,8 @@ function panel(color: Colorway): string {
       const tab = only
         ? ""
         : `<label class="view-tab">${view.label}<input class="view-input" type="radio" name="view-${esc(color.id)}" value="${esc(view.id)}"${index === 0 ? " checked" : ""}></label>`
-      const body = view.id === "model" && color.model ? modelSlot(color.model) : view.shot ? still(view.shot, view.id === "front", GALLERY_SIZES) : ""
+      const sizes = view.shot?.render ? RENDER_SIZES : GALLERY_SIZES
+      const body = view.id === "model" && color.model ? modelSlot(color.model) : view.shot ? still(view.shot, view.id === "front", sizes) : ""
       return `<div class="view-block">${tab}<div class="view${only ? " is-only" : ""}" data-view="${esc(view.id)}">${body}</div></div>`
     })
     .join("")
@@ -241,7 +246,7 @@ function group(product: Product, color: Colorway, site: Site, now: Date): string
   const live = amounts.length ? `<p class="live" data-price-live aria-live="polite"></p>` : ""
   return `<div class="group" data-color="${esc(color.id)}">
     ${live}
-    <fieldset class="sizes"><legend>Size</legend>${scarcityMarkup(color)}${offers}</fieldset>
+    <fieldset class="sizes"><legend>Size</legend><span class="size-label" aria-hidden="true">Size</span>${scarcityMarkup(color)}${offers}</fieldset>
     ${fallback}
   </div>`
 }

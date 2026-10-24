@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { contactReady } from "../src/lib/catalog"
 import { renderRoute, type Assets } from "../src/lib/render"
@@ -47,5 +47,7 @@ writeFileSync(
 )
 
 const dropped = pruneUnreferencedMedia(dist)
+if (products.length === 0) rmSync(join(dist, "vendor"), { recursive: true, force: true })
 console.log(`wrote ${urls.length + 1} html files`)
 if (dropped.length) console.log(`left ${dropped.length} unlisted media files out of dist`)
+if (products.length === 0) console.log("left vendor out of dist")
