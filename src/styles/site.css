@@ -63,15 +63,6 @@ p {
   margin: 0;
 }
 
-.untitled {
-  font-family: var(--font-body);
-  font-size: var(--body);
-  font-weight: 500;
-  line-height: 1.4;
-  margin: 0;
-  max-width: var(--measure);
-}
-
 h2 {
   font-family: var(--font-body);
   font-size: 1.5rem;
@@ -237,6 +228,12 @@ button:disabled {
   min-width: 0;
 }
 
+.page {
+  display: grid;
+  gap: var(--space-md);
+  align-content: start;
+}
+
 .hero {
   display: grid;
   gap: var(--space-sm);
@@ -262,6 +259,7 @@ button:disabled {
 
 .stage,
 .frame {
+  position: relative;
   min-width: 0;
   background: transparent;
 }
@@ -367,8 +365,41 @@ button:disabled {
   font-family: var(--font-mono);
 }
 
-.shipping-cost {
+.shipping-cost,
+.tax {
   margin: 0;
+}
+
+.tax {
+  font-family: var(--font-mono);
+}
+
+.group .price[data-size],
+.group .total[data-size] {
+  display: none;
+}
+
+.group:has(.size-input[value="s"]:checked) .price[data-size="s"],
+.group:has(.size-input[value="m"]:checked) .price[data-size="m"],
+.group:has(.size-input[value="l"]:checked) .price[data-size="l"],
+.group:has(.size-input[value="xl"]:checked) .price[data-size="xl"],
+.group:has(.size-input[value="2xl"]:checked) .price[data-size="2xl"],
+.group:has(.size-input[value="3xl"]:checked) .price[data-size="3xl"],
+.group:has(.size-input[value="s"]:checked) .total[data-size="s"],
+.group:has(.size-input[value="m"]:checked) .total[data-size="m"],
+.group:has(.size-input[value="l"]:checked) .total[data-size="l"],
+.group:has(.size-input[value="xl"]:checked) .total[data-size="xl"],
+.group:has(.size-input[value="2xl"]:checked) .total[data-size="2xl"],
+.group:has(.size-input[value="3xl"]:checked) .total[data-size="3xl"] {
+  display: flex;
+}
+
+.live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
 }
 
 .frame {
@@ -425,6 +456,10 @@ button:disabled {
   min-width: 0;
 }
 
+.views {
+  align-items: center;
+}
+
 .choices legend,
 .sizes legend,
 .views legend {
@@ -460,7 +495,12 @@ button:disabled {
   cursor: pointer;
 }
 
-.size:has(input:focus-visible), .swatch:has(input:focus-visible), .view-tab:has(input:focus-visible){outline:var(--focus-width) solid var(--text);outline-offset:var(--focus-offset)}
+.size:has(input:focus-visible),
+.swatch:has(input:focus-visible),
+.view-tab:has(input:focus-visible) {
+  outline: var(--focus-width) solid var(--text);
+  outline-offset: var(--focus-offset);
+}
 
 .size:hover:not(:has(input:disabled)),
 .swatch:hover,
@@ -484,12 +524,12 @@ button:disabled {
   border-color: var(--text);
 }
 
-.size:has(input:disabled) {
+.size:has(input:disabled)[data-state="soldout"] {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.size:has(input:disabled) > span:first-of-type {
+.size:has(input:disabled)[data-state="soldout"] > span:first-of-type {
   text-decoration: line-through;
 }
 
@@ -538,7 +578,8 @@ label:focus-within {
 
 .group {
   display: none;
-  gap: var(--space-sm);
+  gap: var(--space-2xs);
+  position: relative;
 }
 
 .product:has(.color-input[value="black"]:checked) .group[data-color="black"],
@@ -550,6 +591,7 @@ label:focus-within {
 .panel:has(.view-input[value="front"]:checked) .view[data-view="front"],
 .panel:has(.view-input[value="back"]:checked) .view[data-view="back"],
 .panel:has(.view-input[value="side"]:checked) .view[data-view="side"],
+.panel:has(.view-input[value="model"]:checked) .view[data-view="model"],
 .view.is-only {
   display: block;
 }
@@ -578,6 +620,42 @@ label:focus-within {
 
 .details img {
   max-height: var(--detail-media);
+}
+
+.support {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin: 0;
+  width: min(100%, 16rem);
+}
+
+.support img {
+  width: var(--tap);
+  max-height: var(--tap);
+  object-fit: contain;
+}
+
+.support .render-label {
+  position: static;
+}
+
+.product .stage img,
+.product .spin img,
+.product model-viewer {
+  max-height: var(--gallery);
+}
+
+.model-slot {
+  width: 100%;
+  min-height: var(--gallery);
+}
+
+.model-slot model-viewer {
+  display: block;
+  width: 100%;
+  height: var(--gallery);
+  background: transparent;
 }
 
 .spin {
@@ -760,6 +838,20 @@ dialog::backdrop {
   .frame .front img,
   .spin img {
     max-height: var(--media-max);
+  }
+
+  .product .stage img,
+  .product .spin img,
+  .product model-viewer {
+    max-height: var(--media-mid);
+  }
+
+  .product .model-slot {
+    min-height: var(--media-mid);
+  }
+
+  .product .model-slot model-viewer {
+    height: var(--media-mid);
   }
 
   .product-layout {

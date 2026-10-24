@@ -8,7 +8,7 @@ Dials: energy 3, rhythm 3, motion 1.
 
 Hell Fire is the reference for feel: a thin header, a lot of black, and the product larger than the chrome. This site does not copy that shop's logo, artwork, copy, layout, or code.
 
-What is original here: the stacked Pray4 / BetterDays wordmark, the rhinestone praying-hands hoodie, and hosted Square checkout (no bag). The supplied hoodie image is a real front photo. A generated back, side, detail, or spin frame is marked on the image with "Render, final may vary", and its alt text starts with "Render:". The page does not present a generated frame as a photograph, and it does not call the front photo 3D.
+What is original here: the stacked Pray4 / BetterDays wordmark, the rhinestone praying-hands hoodie, and hosted Square checkout (no bag). The supplied hoodie image is a real front photo, and it is the only zoom source. A generated back, side, thumbnail, or 3D view is marked with "Render, final may vary", and its alt text starts with "Render:". The page does not present a generated frame as a photograph. The 3D control loads only after it is chosen, and it does not auto-rotate.
 
 The public story stays empty until it is written in `src/data/site.json`. The About page only credits Aniyla Evans, founder and designer. The seller named in the footer, Privacy, and Shipping is Pray 4 Better Days LLC. The brand in the UI stays Pray4BetterDays.
 

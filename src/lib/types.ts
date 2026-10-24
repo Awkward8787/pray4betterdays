@@ -21,6 +21,33 @@ export interface SizeOption {
   label: string
   sku: string
   checkoutUrl: string
+  /** Cents for this size. Null falls back to the base price. */
+  priceCents?: number | null
+  /** Square Payment Link for this size. Null until the link exists. */
+  paymentLink?: string | null
+  /** Units left. 0 is sold out. Null means the count is not in yet. */
+  remaining?: number | null
+}
+
+export interface Turntable {
+  alt: string
+  width: number
+  height: number
+  prefix: string
+  count: number
+}
+
+export interface ModelView {
+  src: string
+  alt: string
+  spin: Turntable
+}
+
+export interface ConfigSize {
+  id: string
+  label: string
+  priceCents: number
+  paymentLink: string | null
 }
 
 export interface Colorway {
@@ -38,6 +65,8 @@ export interface Colorway {
     details: Shot[]
   }
   spin: Shot[]
+  /** Generated 3D view. Absent until a model is supplied. */
+  model?: ModelView | null
   sizes: SizeOption[]
 }
 
@@ -82,6 +111,13 @@ export interface Site {
   presalePriceCents: number
   currency: string
   shippingCost: string
+  /**
+   * True when the size price already includes tax.
+   * False when Square adds tax on top.
+   * Null until that is known. Preview shows [tax] and does not guess.
+   */
+  taxIncluded: boolean | null
+  sizes: ConfigSize[]
   /** Owner note for the Payment Link. Never rendered. */
   paymentLinkNote: string
   sizeGuide: SizeGuideRow[]

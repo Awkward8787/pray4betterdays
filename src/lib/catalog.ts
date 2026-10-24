@@ -1,4 +1,4 @@
-import type { Colorway, Cta, PriceView, Product, Shot, Site, Status } from "./types"
+import type { Colorway, Cta, PriceView, Product, Shot, Site, SizeOption, Status } from "./types"
 
 // Prices are integer US cents. Null means unset, and the page shows no price.
 // There is no former-price field. A compare-at price would be a claim this drop never earned.
@@ -47,7 +47,9 @@ export function preorderTermsReady(product: Product, site: Site): boolean {
     product.shipEstimate.trim() &&
       site.refundPolicy.trim() &&
       site.cancelPolicy.trim() &&
-      site.returnsBody.trim(),
+      site.returnsBody.trim() &&
+      site.delayPolicy.trim() &&
+      contactReady(site),
   )
 }
 
@@ -88,24 +90,34 @@ export function colorBlocked(color: Colorway): boolean {
   return color.remaining === 0
 }
 
-export function sizeCta(product: Product, color: Colorway, checkoutUrl: string, now: Date, site: Site): Cta {
-  const href = safeCheckoutUrl(checkoutUrl)
-  if (product.status === "soldout" || colorBlocked(color)) {
+export function sizeCheckout(size: SizeOption): string {
+  const link = size.paymentLink?.trim() ?? ""
+  if (link) return link
+  return size.checkoutUrl ?? ""
+}
+
+export function sizeSoldOut(product: Product, size: SizeOption): boolean {
+  return product.status === "soldout" || size.remaining === 0
+}
+
+export function sizePriceCents(product: Product, color: Colorway, size: SizeOption, _site: Site): number | null {
+  if (typeof size.priceCents === "number") return size.priceCents
+  if (product.status === "presale") return color.presalePrice
+  return color.price
+}
+
+export function sizeCta(product: Product, color: Colorway, size: SizeOption, now: Date, site: Site): Cta {
+  const href = safeCheckoutUrl(sizeCheckout(size))
+  if (sizeSoldOut(product, size)) {
     return { kind: "disabled", label: "Sold out" }
   }
   if (presaleClosed(product, now)) {
     return { kind: "disabled", label: "Pre-order closed" }
   }
-  if (!href || product.status === "comingsoon") {
+  if (!href || product.status === "comingsoon" || sizePriceCents(product, color, size, site) == null || !preorderTermsReady(product, site)) {
     return { kind: "disabled", label: "Coming soon" }
   }
-  if (product.status === "presale") {
-    if (color.presalePrice == null || !preorderTermsReady(product, site)) {
-      return { kind: "disabled", label: "Coming soon" }
-    }
-    return { kind: "link", label: "Pre-order", href }
-  }
-  if (color.price == null) return { kind: "disabled", label: "Coming soon" }
+  if (product.status === "presale") return { kind: "link", label: "Pre-order", href }
   return { kind: "link", label: "Buy now", href }
 }
 

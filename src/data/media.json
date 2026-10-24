@@ -1,34 +1,34 @@
 {
-  "alt": "Black zip hoodie with rhinestone lettering, praying hands, and studs.",
-  "width": 941,
-  "height": 1022,
-  "zoom": "/media/first-design/zoom.png",
+  "alt": "Black washed zip hoodie, rhinestone Pray 4 Better Days script, airbrushed praying hands with jewelry in clouds, studded hood edge and cuffs",
+  "width": 1024,
+  "height": 1536,
+  "zoom": "/media/first-design/black/front-cutout.png",
   "avif": [
     {
-      "src": "/media/first-design/w480.avif",
+      "src": "/media/first-design/black/front/w480.avif",
       "width": 480
     },
     {
-      "src": "/media/first-design/w768.avif",
+      "src": "/media/first-design/black/front/w768.avif",
       "width": 768
     },
     {
-      "src": "/media/first-design/w941.avif",
-      "width": 941
+      "src": "/media/first-design/black/front/w1024.avif",
+      "width": 1024
     }
   ],
   "webp": [
     {
-      "src": "/media/first-design/w480.webp",
+      "src": "/media/first-design/black/front/w480.webp",
       "width": 480
     },
     {
-      "src": "/media/first-design/w768.webp",
+      "src": "/media/first-design/black/front/w768.webp",
       "width": 768
     },
     {
-      "src": "/media/first-design/w941.webp",
-      "width": 941
+      "src": "/media/first-design/black/front/w1024.webp",
+      "width": 1024
     }
   ]
 }

@@ -3,9 +3,9 @@ import {
   displayHeading,
   findProduct,
   formatEndDate,
+  formatMoney,
   instagramHandle,
   normalizePath,
-  priceView,
   productLabel,
   productPath,
   reachLinks,
@@ -13,9 +13,11 @@ import {
   scarcityLines,
   shotAlt,
   sizeCta,
+  sizePriceCents,
+  sizeSoldOut,
 } from "./catalog"
 import { iconBan, iconClose, iconMenu, iconNext, iconPrev, iconZoom } from "./icons"
-import type { Cta, Colorway, Product, Shot, Site } from "./types"
+import type { Cta, Colorway, ModelView, Product, Shot, Site } from "./types"
 
 export interface Assets {
   css: string[]
@@ -94,6 +96,19 @@ function zoomButton(shot: Shot, eager: boolean, sizes: string): string {
   </figure>`
 }
 
+function still(shot: Shot, eager: boolean, sizes: string): string {
+  if (shot.render || !shot.zoom) {
+    const alt = shotAlt(shot)
+    return `<figure class="stage" data-watch>${picture(shot, { eager, sizes, alt })}${renderBadge(shot)}</figure>`
+  }
+  return zoomButton(shot, eager, sizes)
+}
+
+function supportThumb(shot: Shot): string {
+  const alt = shotAlt(shot)
+  return `<figure class="support" data-watch>${picture(shot, { eager: false, sizes: "8rem", alt })}${renderBadge(shot)}</figure>`
+}
+
 function ctaMarkup(cta: Cta, sizeId: string, fallback = false): string {
   const size = fallback ? "" : ` data-size="${esc(sizeId)}"`
   const extra = fallback ? " buy-fallback" : " buy-link"
@@ -104,22 +119,30 @@ function ctaMarkup(cta: Cta, sizeId: string, fallback = false): string {
   return `<button type="button" class="button${extra}"${size} disabled>${icon}${esc(cta.label)}</button>`
 }
 
-function moneyMarkup(product: Product, color: Colorway): string {
-  const price = priceView(product, color)
-  if (!price.current) return ""
-  return `<p class="price"><span>${esc(price.current)}</span></p>`
-}
-
 function shippingCostMarkup(site: Site): string {
   const text = site.shippingCost.trim()
   if (!text) return ""
   return `<p class="shipping-cost">${esc(text)}</p>`
 }
 
-function totalMarkup(product: Product, color: Colorway): string {
-  const price = priceView(product, color)
-  if (!price.current) return ""
-  return `<p class="total"><span>Total</span> <span>${esc(price.current)}</span></p>`
+function totalMarkup(amount: string, sizeId: string, site: Site): string {
+  if (site.taxIncluded === false) {
+    return `<p class="total" data-size="${esc(sizeId)}"><span>${esc(amount)} plus tax</span></p>`
+  }
+  return `<p class="total" data-size="${esc(sizeId)}"><span>Total</span> <span>${esc(amount)}</span></p>`
+}
+
+function taxMarkup(site: Site): string {
+  if (site.taxIncluded !== null) return ""
+  return `<p class="tax">[tax]</p>`
+}
+
+function sizedAmounts(product: Product, color: Colorway, site: Site): { id: string; amount: string }[] {
+  return color.sizes.flatMap((size) => {
+    const cents = sizePriceCents(product, color, size, site)
+    if (cents == null) return []
+    return [{ id: size.id, amount: formatMoney(cents, color.currency) }]
+  })
 }
 
 function scarcityMarkup(color: Colorway): string {
@@ -128,12 +151,18 @@ function scarcityMarkup(color: Colorway): string {
   return `<p class="runs">${lines.map((line) => `<span>${esc(line)}</span>`).join("")}</p>`
 }
 
-function viewsFor(color: Colorway): { id: string; label: string; shot: Shot }[] {
-  const views: { id: string; label: string; shot: Shot }[] = []
+function viewsFor(color: Colorway): { id: string; label: string; shot: Shot | null }[] {
+  const views: { id: string; label: string; shot: Shot | null }[] = []
   if (color.images.front) views.push({ id: "front", label: "Front", shot: color.images.front })
   if (color.images.back) views.push({ id: "back", label: "Back", shot: color.images.back })
   if (color.images.side) views.push({ id: "side", label: "Side", shot: color.images.side })
+  if (color.model) views.push({ id: "model", label: "3D view", shot: null })
   return views
+}
+
+function modelSlot(model: ModelView): string {
+  const spin = model.spin
+  return `<div class="stage model-slot" data-model tabindex="0" role="region" aria-label="${esc(model.alt)}" data-src="${esc(model.src)}" data-alt="${esc(model.alt)}" data-frame-prefix="${esc(spin.prefix)}" data-frame-count="${spin.count}" data-frame-w="${spin.width}" data-frame-h="${spin.height}" data-frame-alt="${esc(spin.alt)}"><span class="render-label">${esc(RENDER_NOTE)}</span></div>`
 }
 
 function spinBlock(frames: Shot[]): string {
@@ -162,55 +191,67 @@ function spinBlock(frames: Shot[]): string {
 function panel(color: Colorway): string {
   const views = viewsFor(color)
   const only = views.length <= 1
-  const tabs = only
-    ? ""
-    : `<fieldset class="views"><legend>View</legend>${views
-        .map(
-          (view, index) => `<label class="view-tab">${view.label}<input class="view-input" type="radio" name="view-${esc(color.id)}" value="${esc(view.id)}"${index === 0 ? " checked" : ""}></label>`,
-        )
-        .join("")}</fieldset>`
-  const shots = views
+  const tabs = views
     .map(
-      (view) =>
-        `<div class="view${only ? " is-only" : ""}" data-view="${esc(view.id)}">${zoomButton(view.shot, true, GALLERY_SIZES)}</div>`,
+      (view, index) =>
+        `<label class="view-tab">${view.label}<input class="view-input" type="radio" name="view-${esc(color.id)}" value="${esc(view.id)}"${index === 0 ? " checked" : ""}></label>`,
     )
     .join("")
-  const details = color.images.details.length
-    ? `<h2>Details</h2><ul class="details">${color.images.details
+  const renders = color.images.details.filter((shot) => shot.render)
+  const photos = color.images.details.filter((shot) => !shot.render)
+  const thumbs = renders.map((shot) => supportThumb(shot)).join("")
+  const switcher =
+    views.length > 1 || thumbs
+      ? `<fieldset class="views"><legend>View</legend>${views.length > 1 ? tabs : ""}${thumbs}</fieldset>`
+      : ""
+  const shots = views
+    .map((view) => {
+      const body = view.id === "model" && color.model ? modelSlot(color.model) : view.shot ? still(view.shot, view.id === "front", GALLERY_SIZES) : ""
+      return `<div class="view${only ? " is-only" : ""}" data-view="${esc(view.id)}">${body}</div>`
+    })
+    .join("")
+  const details = photos.length
+    ? `<h2>Details</h2><ul class="details">${photos
         .map((shot) => {
           const alt = shotAlt(shot)
           return `<li><button type="button" class="detail-open" aria-label="Zoom: ${esc(alt)}" data-zoom="${esc(shot.zoom)}" data-zoom-alt="${esc(alt)}" data-zoom-w="${shot.width}" data-zoom-h="${shot.height}">${picture(shot, { eager: false, sizes: "40vw", alt })}${renderBadge(shot)}</button></li>`
         })
         .join("")}</ul>`
     : ""
-  return `<div class="panel" data-color="${esc(color.id)}">${tabs}${shots}${spinBlock(color.spin)}${details}</div>`
+  return `<div class="panel" data-color="${esc(color.id)}">${switcher}${shots}${spinBlock(color.spin)}${details}</div>`
 }
 
 function group(product: Product, color: Colorway, site: Site, now: Date): string {
-  const states = color.sizes.map((size) => sizeCta(product, color, size.checkoutUrl, now, site))
-  const enabledIndex = states.findIndex((state) => state.kind === "link")
-  const sharedDisabled = states.every((state) => state.kind === "disabled" && state.label === states[0]?.label)
+  const states = color.sizes.map((size) => sizeCta(product, color, size, now, site))
+  const selected = states.findIndex((state) => state.label !== "Sold out")
+  const amounts = sizedAmounts(product, color, site)
+  const amountFor = new Map(amounts.map((row) => [row.id, row.amount]))
   const sizes = color.sizes
     .map((size, index) => {
-      const cta = states[index]
-      const disabled = cta.kind === "disabled" ? " disabled" : ""
-      const checked = index === enabledIndex ? " checked" : ""
-      const showNote = cta.kind === "disabled" && (cta.label !== "Coming soon" || !sharedDisabled)
-      const note = showNote ? `<span class="size-state">${esc(cta.label)}</span>` : ""
+      const soldOut = sizeSoldOut(product, size)
+      const disabled = soldOut ? " disabled" : ""
+      const state = soldOut ? ` data-state="soldout"` : ""
+      const checked = index === selected ? " checked" : ""
+      const amount = amountFor.get(size.id) ?? ""
+      const price = amount ? ` data-price="${esc(amount)}" data-total="${esc(site.taxIncluded === false ? `${amount} plus tax` : `Total ${amount}`)}"` : ""
+      const note = soldOut ? `<span class="size-state">Sold out</span>` : ""
       const sku = size.sku.trim() ? `<span class="sku">${esc(size.sku)}</span>` : ""
-      return `<label class="size"><input class="size-input" type="radio" name="size-${esc(color.id)}" value="${esc(size.id)}"${checked}${disabled}><span>${esc(size.label)}</span>${note}${sku}</label>`
+      return `<label class="size"${state}><input class="size-input" type="radio" name="size-${esc(color.id)}" value="${esc(size.id)}"${checked}${disabled}${price}><span>${esc(size.label)}</span>${note}${sku}</label>`
     })
     .join("")
-  const buys = color.sizes
-    .map((size) => ctaMarkup(sizeCta(product, color, size.checkoutUrl, now, site), size.id))
-    .join("")
-  const fallbackCta = sizeCta(product, color, color.sizes[0]?.checkoutUrl ?? "", now, site)
+  const prices = amounts.map((row) => `<p class="price" data-size="${esc(row.id)}"><span>${esc(row.amount)}</span></p>`).join("")
+  const totals = amounts.map((row) => totalMarkup(row.amount, row.id, site)).join("")
+  const buys = color.sizes.map((size, index) => ctaMarkup(states[index], size.id)).join("")
+  const fallbackCta = states[0] ?? { kind: "disabled" as const, label: "Coming soon" as const }
   const fallback = ctaMarkup(fallbackCta.kind === "link" ? { kind: "disabled", label: "Coming soon" } : fallbackCta, "", true)
   const disclosure = states.some((state) => state.kind === "link" && state.label === "Pre-order") ? presaleCopy(product, site) : ""
+  const live = amounts.length ? `<p class="live" data-price-live aria-live="polite"></p>` : ""
   return `<div class="group" data-color="${esc(color.id)}">
-    ${moneyMarkup(product, color)}
-    ${priceView(product, color).current ? shippingCostMarkup(site) : ""}
-    ${totalMarkup(product, color)}
+    ${prices}
+    ${amounts.length ? shippingCostMarkup(site) : ""}
+    ${totals}
+    ${amounts.length ? taxMarkup(site) : ""}
+    ${live}
     ${disclosure}
     ${scarcityMarkup(color)}
     <fieldset class="sizes"><legend>Size</legend>${sizes}</fieldset>
@@ -225,7 +266,7 @@ function presaleCopy(product: Product, site: Site): string {
     : ""
   const until = end ? `<p class="end">Pre-order ends <time datetime="${esc(product.presaleEndsAt ?? "")}">${esc(end)}</time>.</p>` : ""
   return `<div class="notes">
-    <p class="note">This is a pre-order. The card is charged now through Square.</p>
+    <p class="note"><a class="text-link" href="/shipping/">This is a pre-order. The card is charged now through Square.</a></p>
     ${ship}
     ${until}
   </div>`
@@ -233,8 +274,9 @@ function presaleCopy(product: Product, site: Site): string {
 
 function productArticle(product: Product, site: Site, now: Date): string {
   const label = productLabel(product)
-  const headingClass = label.named ? (displayHeading(label.text) ? "display title" : "title") : "untitled"
-  const title = label.text ? `<h1 class="${headingClass}">${esc(label.text)}</h1>` : ""
+  const title = label.named
+    ? `<h1 class="${displayHeading(label.text) ? "display title" : "title"}">${esc(label.text)}</h1>`
+    : ""
   const end = product.status === "presale" && product.presaleEndsAt ? ` data-presale-end="${esc(product.presaleEndsAt)}"` : ""
   const colors = product.colors
     .map((color, index) => {
@@ -268,17 +310,23 @@ function card(product: Product, site: Site, now: Date, lead: boolean): string {
   const name = product.name.trim() ? `<span class="card-name">${esc(product.name.trim())}</span>` : ""
   const blocked = color ? scarcityLines(color) : []
   const state = cardState(product, site, now)
-  const price = color ? moneyMarkup(product, color) : ""
-  const shipping = price ? shippingCostMarkup(site) : ""
-  const total = color ? totalMarkup(product, color) : ""
+  const starting = color ? sizedAmounts(product, color, site)[0] : undefined
+  const price = starting ? `<p class="price"><span>${esc(starting.amount)}</span></p>` : ""
+  const shipping = starting ? shippingCostMarkup(site) : ""
+  const total = starting
+    ? site.taxIncluded === false
+      ? `<p class="total"><span>${esc(starting.amount)} plus tax</span></p>`
+      : `<p class="total"><span>Total</span> <span>${esc(starting.amount)}</span></p>`
+    : ""
+  const tax = starting ? taxMarkup(site) : ""
   const run = blocked.length ? `<span class="runs">${blocked.map((line) => `<span>${esc(line)}</span>`).join("")}</span>` : ""
-  return `<a class="card${lead ? " card-lead" : ""}" href="${productPath(product.slug)}">${frame}<span class="card-copy">${name}${price}${shipping}${total}${state}${run}</span></a>`
+  return `<a class="card${lead ? " card-lead" : ""}" href="${productPath(product.slug)}">${frame}<span class="card-copy">${name}${price}${shipping}${total}${tax}${state}${run}</span></a>`
 }
 
 function cardState(product: Product, site: Site, now: Date): string {
   const color = product.colors[0]
   if (!color) return ""
-  const states = color.sizes.map((size) => sizeCta(product, color, size.checkoutUrl, now, site))
+  const states = color.sizes.map((size) => sizeCta(product, color, size, now, site))
   if (states.some((state) => state.kind === "disabled" && state.label === "Sold out") && states.every((state) => state.kind === "disabled")) {
     return `<span class="card-status">${iconBan} Sold out</span>`
   }
@@ -426,7 +474,7 @@ function about(ctx: Ctx): string {
   return `<article class="page">
     <h1 class="display title">About</h1>
     <div class="prose">
-      <p>Designed by ${esc(ctx.site.founder)}, founder and designer.</p>
+      <p>${esc(ctx.site.founder)}, founder and designer.</p>
       ${story}
     </div>
   </article>`

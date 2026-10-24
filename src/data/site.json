@@ -22,6 +22,15 @@
   "presalePriceCents": 8500,
   "currency": "USD",
   "shippingCost": "Free shipping",
+  "taxIncluded": null,
+  "sizes": [
+    { "id": "s", "label": "S", "priceCents": 8500, "paymentLink": null },
+    { "id": "m", "label": "M", "priceCents": 8500, "paymentLink": null },
+    { "id": "l", "label": "L", "priceCents": 8500, "paymentLink": null },
+    { "id": "xl", "label": "XL", "priceCents": 8500, "paymentLink": null },
+    { "id": "2xl", "label": "2XL", "priceCents": 9000, "paymentLink": null },
+    { "id": "3xl", "label": "3XL", "priceCents": 9500, "paymentLink": null }
+  ],
   "paymentLinkNote": "The Square Payment Link has no shipping line item. The buyer pays the hoodie price only. The seller absorbs processing fees. Do not show fees to buyers.",
   "sizeGuide": []
 }

@@ -1,4 +1,4 @@
-import { iconBan } from "./lib/icons"
+import { iconBan, iconNext, iconPrev } from "./lib/icons"
 
 export function fittedZoomWidth(stageWidth: number, naturalWidth: number): number {
   const natural = Number.isFinite(naturalWidth) && naturalWidth > 0 ? naturalWidth : 1
@@ -147,10 +147,15 @@ function bindZoom(): void {
 }
 
 function bindSpin(): void {
-  document.querySelectorAll<HTMLElement>("[data-spin]").forEach((region) => {
-    const view = region.querySelector<HTMLImageElement>("[data-spin-view]")
-    const frames = [...region.querySelectorAll<HTMLElement>("[data-frame]")]
-    if (!view || frames.length === 0) return
+  document.querySelectorAll<HTMLElement>("[data-spin]").forEach((region) => bindSpinRegion(region))
+}
+
+function bindSpinRegion(region: HTMLElement): void {
+  if (region.dataset.bound === "1") return
+  const view = region.querySelector<HTMLImageElement>("[data-spin-view]")
+  const frames = [...region.querySelectorAll<HTMLElement>("[data-frame]")]
+  if (!view || frames.length === 0) return
+  region.dataset.bound = "1"
     let index = 0
     const label = region.querySelector<HTMLElement>("[data-render-label]")
     const show = (next: number) => {
@@ -187,6 +192,177 @@ function bindSpin(): void {
       if (Math.abs(delta) < 18) return
       show(index + (delta > 0 ? 1 : -1))
       origin = event.clientX
+    })
+}
+
+function bindSizePrices(): void {
+  document.querySelectorAll<HTMLInputElement>(".size-input").forEach((input) => {
+    input.addEventListener("change", () => {
+      const live = input.closest(".group")?.querySelector<HTMLElement>("[data-price-live]")
+      if (!live) return
+      const amount = input.dataset.price || ""
+      const total = input.dataset.total || ""
+      live.textContent = amount && total ? `${amount}. ${total}.` : ""
+    })
+  })
+}
+
+function hasWebGL(): boolean {
+  try {
+    const canvas = document.createElement("canvas")
+    return Boolean(canvas.getContext("webgl2") || canvas.getContext("webgl"))
+  } catch {
+    return false
+  }
+}
+
+let viewerLoad: Promise<void> | null = null
+
+function loadModelViewer(): Promise<void> {
+  if (customElements.get("model-viewer")) return Promise.resolve()
+  if (viewerLoad) return viewerLoad
+  viewerLoad = new Promise((resolve, reject) => {
+    const script = document.createElement("script")
+    script.type = "module"
+    script.src = "/vendor/model-viewer.min.js"
+    script.addEventListener("load", () => resolve())
+    script.addEventListener("error", () => reject(new Error("model viewer failed")))
+    document.head.append(script)
+  })
+  return viewerLoad
+}
+
+function frameSrc(prefix: string, index: number): string {
+  return `${prefix}${String(index).padStart(2, "0")}.webp`
+}
+
+function mountTurntable(slot: HTMLElement): void {
+  if (slot.querySelector("[data-spin]")) return
+  const count = Number(slot.dataset.frameCount || 0)
+  const prefix = slot.dataset.framePrefix || ""
+  const alt = slot.dataset.frameAlt || ""
+  const region = document.createElement("div")
+  region.className = "spin"
+  region.dataset.spin = ""
+  region.tabIndex = -1
+  region.setAttribute("role", "region")
+  region.setAttribute("aria-roledescription", "carousel")
+  region.setAttribute("aria-label", alt)
+  const frame = document.createElement("div")
+  frame.className = "spin-frame"
+  frame.dataset.watch = ""
+  const image = document.createElement("img")
+  image.dataset.spinView = ""
+  image.alt = alt
+  image.width = Number(slot.dataset.frameW || 0)
+  image.height = Number(slot.dataset.frameH || 0)
+  frame.append(image)
+  const controls = document.createElement("div")
+  controls.className = "spin-controls"
+  const previous = document.createElement("button")
+  previous.type = "button"
+  previous.className = "button secondary"
+  previous.dataset.spinPrev = ""
+  previous.innerHTML = `${iconPrev} Previous frame`
+  const next = document.createElement("button")
+  next.type = "button"
+  next.className = "button secondary"
+  next.dataset.spinNext = ""
+  next.innerHTML = `${iconNext} Next frame`
+  controls.append(previous, next)
+  const list = document.createElement("ol")
+  list.hidden = true
+  for (let index = 0; index < count; index += 1) {
+    const item = document.createElement("li")
+    item.dataset.frame = ""
+    item.dataset.src = frameSrc(prefix, index)
+    item.dataset.alt = alt
+    item.dataset.render = "true"
+    list.append(item)
+  }
+  region.append(frame, controls, list)
+  slot.append(region)
+  bindSpinRegion(region)
+}
+
+function nudgeOrbit(viewer: Element, key: string): void {
+  const raw = viewer.getAttribute("camera-orbit") || "0deg 75deg auto"
+  const parts = raw.trim().split(/\s+/)
+  let theta = Number.parseFloat(parts[0] || "0")
+  let phi = Number.parseFloat(parts[1] || "75")
+  const radius = parts[2] || "auto"
+  if (!Number.isFinite(theta)) theta = 0
+  if (!Number.isFinite(phi)) phi = 75
+  if (key === "ArrowLeft") theta -= 10
+  if (key === "ArrowRight") theta += 10
+  if (key === "ArrowUp") phi = Math.max(10, phi - 10)
+  if (key === "ArrowDown") phi = Math.min(170, phi + 10)
+  viewer.setAttribute("camera-orbit", `${theta}deg ${phi}deg ${radius}`)
+}
+
+function mountViewer(slot: HTMLElement): void {
+  const viewer = document.createElement("model-viewer")
+  viewer.setAttribute("src", slot.dataset.src || "")
+  viewer.setAttribute("alt", slot.dataset.alt || "")
+  viewer.setAttribute("camera-controls", "")
+  viewer.setAttribute("disable-zoom", "")
+  viewer.setAttribute("interaction-prompt", "none")
+  viewer.setAttribute("touch-action", "pan-y")
+  viewer.setAttribute("environment-image", "neutral")
+  viewer.setAttribute("shadow-intensity", "0")
+  viewer.tabIndex = -1
+  viewer.removeAttribute("auto-rotate")
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) viewer.setAttribute("reveal", "immediate")
+  viewer.addEventListener("load", () => slot.removeAttribute("aria-busy"))
+  viewer.addEventListener("error", () => {
+    viewer.remove()
+    mountTurntable(slot)
+    slot.removeAttribute("aria-busy")
+  })
+  slot.append(viewer)
+}
+
+async function activateModel(slot: HTMLElement): Promise<void> {
+  if (slot.dataset.ready === "1") return
+  slot.dataset.ready = "1"
+  slot.setAttribute("aria-busy", "true")
+  if (!hasWebGL()) {
+    mountTurntable(slot)
+    slot.removeAttribute("aria-busy")
+    return
+  }
+  try {
+    await loadModelViewer()
+    if (!slot.isConnected) return
+    mountViewer(slot)
+  } catch {
+    mountTurntable(slot)
+    slot.removeAttribute("aria-busy")
+  }
+}
+
+function bindModels(): void {
+  document.querySelectorAll<HTMLInputElement>(".view-input").forEach((input) => {
+    input.addEventListener("change", () => {
+      if (input.value !== "model" || !input.checked) return
+      const slot = input.closest(".panel")?.querySelector<HTMLElement>("[data-model]")
+      if (slot) void activateModel(slot)
+    })
+  })
+  document.querySelectorAll<HTMLElement>("[data-model]").forEach((slot) => {
+    slot.addEventListener("keydown", (event) => {
+      if (event.target !== slot) return
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight" && event.key !== "ArrowUp" && event.key !== "ArrowDown") return
+      const viewer = slot.querySelector("model-viewer")
+      if (viewer) {
+        event.preventDefault()
+        nudgeOrbit(viewer, event.key)
+        return
+      }
+      const region = slot.querySelector<HTMLElement>("[data-spin]")
+      if (!region || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return
+      event.preventDefault()
+      region.dispatchEvent(new KeyboardEvent("keydown", { key: event.key, bubbles: true }))
     })
   })
 }
@@ -230,5 +406,7 @@ export function start(): void {
   bindMenu()
   bindZoom()
   bindSpin()
+  bindSizePrices()
+  bindModels()
   bindImages()
 }

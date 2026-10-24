@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from "node:fs"
-import { extname, join } from "node:path"
+import { extname, join, sep } from "node:path"
 import { missingProductNames } from "../src/lib/catalog"
 
 const root = process.cwd()
@@ -11,12 +11,11 @@ const failures: string[] = []
 const products = JSON.parse(productsRaw) as { name?: string }[]
 
 if (!Array.isArray(products) || productsRaw !== "[]") failures.push("src/data/products.json must ship as []")
-if (Array.isArray(products)) {
-  for (const failure of missingProductNames(products)) failures.push(failure)
-}
+
+for (const failure of missingProductNames(Array.isArray(products) ? products : [])) failures.push(failure)
 
 const textExt = new Set([".html", ".css", ".js", ".svg", ".xml", ".txt", ".json"])
-const needles = ["FIXTURE_SENTINEL_DO_NOT_SHIP", "sq0atp", "EAAA", "sk_live"]
+const needles = ["FIXTURE_SENTINEL_DO_NOT_SHIP", "sq0atp", "EAAA", "sk_live", "[tax]"]
 const locationId = (site.squareLocationId ?? "").trim()
 if (locationId) needles.push(locationId)
 
@@ -35,6 +34,9 @@ for (const file of walk(join(root, "dist"))) {
   const ext = extname(file).toLowerCase()
   if (ext !== "" && !textExt.has(ext) && !name.endsWith(".htaccess")) continue
   if (ext === "" && !name.endsWith(".htaccess")) continue
+  // The vendored model-viewer build is a third-party file. Its minified source
+  // can collide with a secret prefix, and this model does not load its decoders.
+  if (name.includes(`${sep}vendor${sep}`)) continue
   const text = readFileSync(file, "utf8")
   for (const needle of needles) {
     if (text.includes(needle)) failures.push(`${file} contains ${needle}`)

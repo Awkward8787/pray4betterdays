@@ -1,8 +1,8 @@
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
-import { SIZE_RUN } from "../src/lib/catalog"
 import { renderRoute, type Assets } from "../src/lib/render"
-import type { Product, Shot, Site } from "../src/lib/types"
+import type { ModelView, Product, Shot, Site } from "../src/lib/types"
+import black from "../src/data/black.json"
 
 const root = process.cwd()
 const dist = join(root, "dist")
@@ -16,10 +16,10 @@ const assets: Assets = {
   js: `/${entry.file}`,
 }
 const site = JSON.parse(readFileSync(join(root, "src/data/site.json"), "utf8")) as Site
-const hero = JSON.parse(readFileSync(join(root, "src/data/media.json"), "utf8")) as Shot
+const hero = black.front as Shot
 
 const fixture: Product = {
-  name: "Black zip hoodie",
+  name: "[product name]",
   slug: "first-hoodie",
   status: "presale",
   description: "",
@@ -34,9 +34,23 @@ const fixture: Product = {
       currency: site.currency,
       runSize: null,
       remaining: null,
-      images: { front: hero, back: null, side: null, details: [] },
+      images: {
+        front: hero,
+        back: black.back as Shot,
+        side: black.side as Shot,
+        details: [black.support as Shot],
+      },
       spin: [],
-      sizes: SIZE_RUN.map((size) => ({ id: size.id, label: size.label, sku: "", checkoutUrl: "" })),
+      model: black.model as ModelView,
+      sizes: site.sizes.map((size) => ({
+        id: size.id,
+        label: size.label,
+        sku: "",
+        checkoutUrl: "",
+        priceCents: size.priceCents,
+        paymentLink: size.paymentLink,
+        remaining: null,
+      })),
     },
   ],
 }

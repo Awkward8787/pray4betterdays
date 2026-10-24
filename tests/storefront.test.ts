@@ -11,9 +11,11 @@ import {
   scarcityLines,
   shotAlt,
   sizeCta,
+  sizePriceCents,
 } from "../src/lib/catalog"
 import { renderRoute, type Ctx } from "../src/lib/render"
 import type { Colorway, Product, Shot, Site } from "../src/lib/types"
+import black from "../src/data/black.json"
 import hero from "../src/data/media.json"
 import productsFile from "../src/data/products.json"
 import siteFile from "../src/data/site.json"
@@ -84,12 +86,22 @@ describe("catalog", () => {
     expect(config.currency).toBe("USD")
     expect(config.shippingCost).toBe("Free shipping")
     expect(config.paymentLinkNote).toContain("no shipping line item")
+    expect(config.taxIncluded).toBeNull()
+    expect(config.sizes.map((size) => [size.id, size.label, size.priceCents, size.paymentLink])).toEqual([
+      ["s", "S", 8500, null],
+      ["m", "M", 8500, null],
+      ["l", "L", 8500, null],
+      ["xl", "XL", 8500, null],
+      ["2xl", "2XL", 9000, null],
+      ["3xl", "3XL", 9500, null],
+    ])
   })
 
   it("shows the first hoodie at $85 with free shipping and no former price", () => {
     const config = siteFile as Site
     const fixtureSrc = readFileSync(join("scripts/preview-fixture.ts"), "utf8")
     expect(fixtureSrc).toContain("presalePrice: site.presalePriceCents")
+    expect(fixtureSrc).toContain('name: "[product name]"')
     expect(fixtureSrc).not.toContain("regularPrice")
     const item = product({
       name: "Black zip hoodie",
@@ -100,7 +112,8 @@ describe("catalog", () => {
     expect(html).toContain("$85.00")
     expect(html).toContain("Free shipping")
     expect(html).toContain(">Total<")
-    expect(html.match(/\$85\.00/g)?.length).toBe(2)
+    expect(html).toContain("[tax]")
+    expect(html.match(/<span>\$85\.00<\/span>/g)?.length).toBe(2)
     expect(html).not.toContain("<s>")
     expect(html).not.toContain("[shipping]")
     expect(html).not.toContain("charged now")
@@ -146,7 +159,8 @@ describe("catalog", () => {
     const closed = product({ status: "presale", presaleEndsAt: "2020-01-01T00:00:00.000Z" })
     expect(presaleClosed(open, now)).toBe(false)
     expect(presaleClosed(closed, now)).toBe(true)
-    expect(sizeCta(closed, closed.colors[0], "https://square.link/u/example", now, site()).label).toBe("Pre-order closed")
+    const closedSize = { ...closed.colors[0].sizes[0], checkoutUrl: "https://square.link/u/example" }
+    expect(sizeCta(closed, closed.colors[0], closedSize, now, site()).label).toBe("Pre-order closed")
   })
 
   it("fails a published product with no name", () => {
@@ -160,6 +174,8 @@ const terms = {
   refundPolicy: "Refunds are available before the order ships.",
   cancelPolicy: "You can cancel before the order ships.",
   returnsBody: "Final sale after delivery.",
+  delayPolicy: "If a ship date slips, we write and offer a cancel.",
+  email: "studio@pray4betterdays.com",
 }
 
 describe("pages", () => {
@@ -232,7 +248,7 @@ describe("pages", () => {
       expect(html).not.toContain("https://square.link/u/example")
       expect(html).not.toContain("charged now")
     }
-    for (const key of ["refundPolicy", "cancelPolicy", "returnsBody"] as const) {
+    for (const key of ["refundPolicy", "cancelPolicy", "returnsBody", "delayPolicy", "email"] as const) {
       const html = page(`/shop/${ready.slug}/`, [ready], { ...terms, [key]: "" })
       expect(html).not.toContain("https://square.link/u/example")
       expect(html).not.toContain("charged now")
@@ -265,28 +281,26 @@ describe("pages", () => {
 
   it("marks a finished run sold out", () => {
     const item = product({
-      colors: [color({ remaining: 0, price: 5000, sizes: [{ id: "m", label: "M", sku: "", checkoutUrl: "https://square.link/u/example" }] })],
-    })
-    const html = page(`/shop/${item.slug}/`, [item])
-    expect(html).toContain("Sold out")
-    expect(html).not.toContain("https://square.link/u/example")
-    expect(html).not.toContain("0 left")
-    const mixed = product({
       colors: [
         color({
           price: 5000,
-          sizes: [
-            { id: "m", label: "M", sku: "", checkoutUrl: "https://square.link/u/example" },
-            { id: "l", label: "L", sku: "", checkoutUrl: "" },
-          ],
+          sizes: [{ id: "m", label: "M", sku: "", checkoutUrl: "https://square.link/u/example", remaining: 0 }],
         }),
       ],
     })
-    const mixedHtml = page(`/shop/${mixed.slug}/`, [mixed])
-    const mixedAt = mixedHtml.indexOf('<fieldset class="sizes">')
-    const mixedSizes = mixedHtml.slice(mixedAt, mixedHtml.indexOf("</fieldset>", mixedAt))
-    expect(mixedSizes).toContain("Coming soon")
-    expect(mixedHtml).toContain("https://square.link/u/example")
+    const html = page(`/shop/${item.slug}/`, [item])
+    expect(html).toContain('data-state="soldout"')
+    expect(html).toContain("Sold out")
+    expect(html).not.toContain("https://square.link/u/example")
+    expect(html).not.toContain("0 left")
+    const open = product({
+      colors: [color({ remaining: 0, price: 5000, sizes: [{ id: "m", label: "M", sku: "", checkoutUrl: "" }] })],
+    })
+    const openHtml = page(`/shop/${open.slug}/`, [open])
+    const openAt = openHtml.indexOf('<fieldset class="sizes">')
+    const openSizes = openHtml.slice(openAt, openHtml.indexOf("</fieldset>", openAt))
+    expect(openSizes).not.toContain('data-state="soldout"')
+    expect(openSizes).not.toContain("disabled")
   })
 
   it("shows the empty drop and hides unset contact links", () => {
@@ -314,7 +328,8 @@ describe("pages", () => {
       expect(html).not.toContain("Previous frame")
       expect(html).not.toContain(">Hoodie<")
     }
-    expect(gallery).toContain('class="untitled"')
+    expect(gallery).not.toContain('class="untitled"')
+    expect(gallery).not.toContain("<h1")
     expect(gallery).toContain(shot.alt)
     const spinning = product({
       colors: [color({ spin: [shot, { ...shot, alt: "Side of the same hoodie." }] })],
@@ -339,7 +354,7 @@ describe("pages", () => {
 
   it("credits the founder and hides an empty story", () => {
     const html = page("/about/", [])
-    expect(html).toContain("Designed by Aniyla Evans, founder and designer.")
+    expect(html).toContain("Aniyla Evans, founder and designer.")
     expect(html).not.toContain("she ")
     expect(html).not.toContain("her ")
     const filled = page("/about/", [], { about: "Printed in small runs." })
@@ -421,8 +436,15 @@ describe("pages", () => {
   it("draws a visible focus ring and fits zoom to the stage", () => {
     const css = readFileSync(join("src/styles/site.css"), "utf8")
     expect(css).toContain(
-      ".size:has(input:focus-visible), .swatch:has(input:focus-visible), .view-tab:has(input:focus-visible){outline:var(--focus-width) solid var(--text);outline-offset:var(--focus-offset)}",
+      `.size:has(input:focus-visible),
+.swatch:has(input:focus-visible),
+.view-tab:has(input:focus-visible) {
+  outline: var(--focus-width) solid var(--text);
+  outline-offset: var(--focus-offset);
+}`,
     )
+    expect(css).toContain('.size:has(input:disabled)[data-state="soldout"] > span:first-of-type')
+    expect(css).not.toMatch(/\.size:has\(input:disabled\) > span:first-of-type/)
     expect(css).not.toMatch(/\.spin\s*\{[^}]*display:\s*none/)
     expect(css).toContain("touch-action: pan-x pan-y")
     expect(fittedZoomWidth(390, 941)).toBe(390)
@@ -431,5 +453,116 @@ describe("pages", () => {
     expect(zoomDisplayWidth(390, 941, 4)).toBe(941)
     const stage = page("/", [])
     expect(stage).toContain('id="zoom-stage" tabindex="0"')
+  })
+
+  it("prices every size from config and falls back when a size has no price", () => {
+    const config = siteFile as Site
+    const sizes = config.sizes.map((size) => ({
+      id: size.id,
+      label: size.label,
+      sku: "",
+      checkoutUrl: "",
+      priceCents: size.priceCents,
+      paymentLink: size.paymentLink,
+      remaining: null,
+    }))
+    const item = product({
+      name: "[product name]",
+      status: "presale",
+      colors: [color({ presalePrice: 8500, sizes })],
+    })
+    const html = page(`/shop/${item.slug}/`, [item])
+    const fieldAt = html.indexOf('<fieldset class="sizes">')
+    const field = html.slice(fieldAt, html.indexOf("</fieldset>", fieldAt))
+    expect(field).toContain('value="s" checked')
+    expect(field).not.toContain("disabled")
+    expect(field).not.toContain('data-state="soldout"')
+    for (const id of ["s", "m", "l", "xl"]) {
+      expect(html).toContain(`<p class="price" data-size="${id}"><span>$85.00</span></p>`)
+      expect(html).toContain(`<p class="total" data-size="${id}"><span>Total</span> <span>$85.00</span></p>`)
+    }
+    expect(html).toContain('<p class="price" data-size="2xl"><span>$90.00</span></p>')
+    expect(html).toContain('<p class="total" data-size="2xl"><span>Total</span> <span>$90.00</span></p>')
+    expect(html).toContain('<p class="price" data-size="3xl"><span>$95.00</span></p>')
+    expect(html).toContain('<p class="total" data-size="3xl"><span>Total</span> <span>$95.00</span></p>')
+    expect(html).toContain("Free shipping")
+    expect(html).toContain("[tax]")
+    expect(html).toContain('aria-live="polite"')
+    const unpriced = { id: "m", label: "M", sku: "", checkoutUrl: "", priceCents: null, paymentLink: null, remaining: null }
+    expect(sizePriceCents(item, item.colors[0], unpriced, site())).toBe(8500)
+    const struck = product({
+      status: "presale",
+      colors: [
+        color({
+          presalePrice: 8500,
+          sizes: sizes.map((size) => (size.id === "l" ? { ...size, remaining: 0 } : size)),
+        }),
+      ],
+    })
+    const struckHtml = page(`/shop/${struck.slug}/`, [struck])
+    const struckAt = struckHtml.indexOf('<fieldset class="sizes">')
+    const struckField = struckHtml.slice(struckAt, struckHtml.indexOf("</fieldset>", struckAt))
+    expect(struckField.match(/data-state="soldout"/g)?.length).toBe(1)
+    expect(struckField).toContain('value="l" disabled')
+    expect(struckField).toContain('value="s" checked')
+  })
+
+  it("keeps buy now behind the same terms as pre-order", () => {
+    const item = product({
+      status: "available",
+      shipEstimate: "Ships when the run is cut.",
+      colors: [
+        color({
+          price: 8500,
+          sizes: [
+            { id: "s", label: "S", sku: "", checkoutUrl: "https://square.link/u/example", priceCents: 8500, paymentLink: null },
+            { id: "m", label: "M", sku: "", checkoutUrl: "", priceCents: 8500, paymentLink: null },
+          ],
+        }),
+      ],
+    })
+    const blocked = page(`/shop/${item.slug}/`, [item])
+    expect(blocked).not.toContain("https://square.link/u/example")
+    expect(blocked).toContain("Coming soon")
+    const open = page(`/shop/${item.slug}/`, [item], terms)
+    expect(open).toContain("https://square.link/u/example")
+    expect(open).toContain("Buy now")
+    const fieldAt = open.indexOf('<fieldset class="sizes">')
+    const field = open.slice(fieldAt, open.indexOf("</fieldset>", fieldAt))
+    expect(field).not.toContain("disabled")
+  })
+
+  it("keeps generated views out of zoom and leaves the 3D file unloaded", () => {
+    expect(black.front.zoom).toContain("front-cutout.png")
+    expect("render" in black.front).toBe(false)
+    expect(black.back.render).toBe(true)
+    expect(black.side.render).toBe(true)
+    expect(black.support.render).toBe(true)
+    for (const alt of [black.back.alt, black.side.alt, black.support.alt, black.model.alt, black.model.spin.alt]) {
+      expect(alt.startsWith("Render:")).toBe(true)
+      expect(alt.toLowerCase()).not.toContain("photo")
+      expect(alt.toLowerCase()).not.toContain("ghost")
+    }
+    const item = product({
+      colors: [
+        color({
+          images: { front: black.front, back: black.back, side: black.side, details: [black.support] },
+          model: black.model,
+        }),
+      ],
+    })
+    const html = page(`/shop/${item.slug}/`, [item])
+    expect(html).toContain("3D view")
+    expect(html).toContain("Render, final may vary")
+    expect(html).not.toContain("model-viewer.min.js")
+    expect(html).not.toContain("<model-viewer")
+    expect(html).not.toContain('src="/media/first-design/black/turntable/frame-00.webp"')
+    expect(html).not.toContain("ghost")
+    const backAt = html.indexOf('data-view="back"')
+    const backHtml = html.slice(backAt, html.indexOf("</div>", backAt))
+    expect(backHtml).not.toContain("data-zoom")
+    expect(html).toContain("data-zoom=")
+    const check = readFileSync(join("scripts/check-dist.ts"), "utf8")
+    expect(check.indexOf("missingProductNames(")).toBeGreaterThan(check.indexOf("must ship as []"))
   })
 })
