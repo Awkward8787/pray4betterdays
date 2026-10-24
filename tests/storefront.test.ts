@@ -1,7 +1,17 @@
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
-import { presaleClosed, priceView, safeCheckoutUrl, scarcityLines, sizeCta } from "../src/lib/catalog"
+import { fittedZoomWidth, zoomDisplayWidth } from "../src/client"
+import {
+  missingProductNames,
+  preorderTermsReady,
+  presaleClosed,
+  priceView,
+  safeCheckoutUrl,
+  scarcityLines,
+  shotAlt,
+  sizeCta,
+} from "../src/lib/catalog"
 import { renderRoute, type Ctx } from "../src/lib/render"
 import type { Colorway, Product, Shot, Site } from "../src/lib/types"
 import hero from "../src/data/media.json"
@@ -22,7 +32,6 @@ function color(overrides: Partial<Colorway> = {}): Colorway {
     name: "Black",
     price: null,
     presalePrice: null,
-    regularPrice: null,
     currency: "USD",
     runSize: null,
     remaining: null,
@@ -71,25 +80,64 @@ describe("catalog", () => {
     expect(config.legalName).toBe("Pray 4 Better Days LLC")
     expect(config.founder).toBe("Aniyla Evans")
     expect(config.squareLocationId.length).toBeGreaterThan(0)
+    expect(config.presalePriceCents).toBe(8500)
+    expect(config.currency).toBe("USD")
+    expect(config.shippingCost).toBe("Free shipping")
+    expect(config.paymentLinkNote).toContain("no shipping line item")
+  })
+
+  it("shows the first hoodie at $85 with free shipping and no former price", () => {
+    const config = siteFile as Site
+    const fixtureSrc = readFileSync(join("scripts/preview-fixture.ts"), "utf8")
+    expect(fixtureSrc).toContain("presalePrice: site.presalePriceCents")
+    expect(fixtureSrc).not.toContain("regularPrice")
+    const item = product({
+      name: "Black zip hoodie",
+      status: "presale",
+      colors: [color({ presalePrice: 8500, price: null, sizes: [{ id: "m", label: "M", sku: "", checkoutUrl: "" }] })],
+    })
+    const html = page(`/shop/${item.slug}/`, [item])
+    expect(html).toContain("$85.00")
+    expect(html).toContain("Free shipping")
+    expect(html).toContain(">Total<")
+    expect(html.match(/\$85\.00/g)?.length).toBe(2)
+    expect(html).not.toContain("<s>")
+    expect(html).not.toContain("[shipping]")
+    expect(html).not.toContain("charged now")
+    expect(html).not.toContain("fees")
+    expect(html).not.toContain(config.paymentLinkNote)
+    expect(html).not.toContain('class="button buy-link" href')
+    const shipping = page("/shipping/", [])
+    expect(shipping).toContain("<h2>Shipping cost</h2>")
+    expect(shipping).toContain("Free shipping")
+    expect(shipping).not.toContain("[shipping]")
+    expect(shipping).not.toContain("fees")
+    expect(shipping).not.toContain(config.paymentLinkNote)
   })
 
   it("rejects unsafe checkout urls", () => {
     expect(safeCheckoutUrl("")).toBe("")
     expect(safeCheckoutUrl("javascript:alert(1)")).toBe("")
+    expect(safeCheckoutUrl("http://square.link/u/example")).toBe("")
+    expect(safeCheckoutUrl("https://evil.example/pay")).toBe("")
+    expect(safeCheckoutUrl("https://square.link.evil.com/u/example")).toBe("")
     expect(safeCheckoutUrl("https://square.link/u/example")).toBe("https://square.link/u/example")
+    expect(safeCheckoutUrl("https://checkout.square.site/merchant/example")).toBe("https://checkout.square.site/merchant/example")
+    expect(safeCheckoutUrl("https://connect.squareup.com/example")).toBe("https://connect.squareup.com/example")
   })
 
-  it("hides a missing price and strikes a real compare price", () => {
+  it("hides a missing price and has no former price", () => {
     const bare = product()
     expect(priceView(bare, bare.colors[0]).current).toBeNull()
     const presale = product({ status: "presale" })
-    const priced = color({ presalePrice: 6000, regularPrice: 8000 })
-    expect(priceView(presale, priced)).toEqual({ current: "$60.00", compare: "$80.00" })
+    const priced = color({ presalePrice: 6000 })
+    expect(priceView(presale, priced)).toEqual({ current: "$60.00" })
+    expect(JSON.stringify(priced)).not.toContain("regularPrice")
   })
 
   it("prints run counts only when they are set", () => {
     expect(scarcityLines(color())).toEqual([])
-    expect(scarcityLines(color({ runSize: 24, remaining: 3 }))).toEqual(["Run of 24", "3 left"])
+    expect(scarcityLines(color({ runSize: 24, remaining: 3 }))).toEqual(["Run of 24"])
     expect(scarcityLines(color({ runSize: 24, remaining: 0 }))).toEqual(["Run of 24"])
   })
 
@@ -98,9 +146,21 @@ describe("catalog", () => {
     const closed = product({ status: "presale", presaleEndsAt: "2020-01-01T00:00:00.000Z" })
     expect(presaleClosed(open, now)).toBe(false)
     expect(presaleClosed(closed, now)).toBe(true)
-    expect(sizeCta(closed, closed.colors[0], "https://square.link/u/example", now).label).toBe("Pre-order closed")
+    expect(sizeCta(closed, closed.colors[0], "https://square.link/u/example", now, site()).label).toBe("Pre-order closed")
+  })
+
+  it("fails a published product with no name", () => {
+    expect(missingProductNames([])).toEqual([])
+    expect(missingProductNames([{ name: "Black zip hoodie" }])).toEqual([])
+    expect(missingProductNames([{ name: "  " }])).toEqual(["product 0 is missing a name"])
   })
 })
+
+const terms = {
+  refundPolicy: "Refunds are available before the order ships.",
+  cancelPolicy: "You can cancel before the order ships.",
+  returnsBody: "Final sale after delivery.",
+}
 
 describe("pages", () => {
   it("renders a fixture product with a working buy link", () => {
@@ -111,7 +171,6 @@ describe("pages", () => {
       colors: [
         color({
           presalePrice: 6000,
-          regularPrice: 8000,
           runSize: 24,
           remaining: 3,
           sizes: [
@@ -121,22 +180,67 @@ describe("pages", () => {
         }),
       ],
     })
-    const html = page(`/shop/${item.slug}/`, [item])
+    const html = page(`/shop/${item.slug}/`, [item], terms)
+    const priceAt = html.indexOf('class="price"')
+    const noteAt = html.indexOf("This is a pre-order. The card is charged now through Square.")
+    const buyAt = html.indexOf("https://square.link/u/example")
     expect(html).toContain(SENTINEL)
-    expect(html).toContain("https://square.link/u/example")
     expect(html).toContain("Pre-order")
     expect(html).toContain("$60.00")
-    expect(html).toContain("$80.00")
-    expect(html).toContain("<s>")
+    expect(html).not.toContain("$80.00")
+    expect(html).not.toContain("$120")
+    expect(html).not.toContain("<s>")
     expect(html).toContain("Run of 24")
-    expect(html).toContain("3 left")
-    expect(html).toContain("This is a pre-order. The card is charged now through Square.")
+    expect(html).not.toContain("3 left")
+    expect(priceAt).toBeGreaterThan(-1)
+    expect(noteAt).toBeGreaterThan(priceAt)
+    expect(buyAt).toBeGreaterThan(noteAt)
     expect(html).toContain("Ships when the run is cut.")
     expect(html).toContain("June 15, 2099")
     expect(html).not.toContain("Drop 01")
     expect(html).not.toContain("<select")
     expect(html).not.toContain("setInterval")
     expect(html).not.toContain(site().squareLocationId)
+  })
+
+  it("keeps pre-order off until price and buyer terms exist", () => {
+    const ready = product({
+      status: "presale",
+      shipEstimate: "Ships when the run is cut.",
+      colors: [color({ presalePrice: 6000, sizes: [{ id: "m", label: "M", sku: "", checkoutUrl: "https://square.link/u/example" }] })],
+    })
+    expect(preorderTermsReady(ready, site())).toBe(false)
+    expect(preorderTermsReady(ready, site(terms))).toBe(true)
+    const blocked = page(`/shop/${ready.slug}/`, [ready])
+    expect(blocked).not.toContain("https://square.link/u/example")
+    expect(blocked).not.toContain("charged now")
+    expect(blocked).toContain("Coming soon")
+    for (const drop of ["shipEstimate", "price"] as const) {
+      const item =
+        drop === "price"
+          ? product({
+              status: "presale",
+              shipEstimate: "Ships when the run is cut.",
+              colors: [color({ presalePrice: null, sizes: [{ id: "m", label: "M", sku: "", checkoutUrl: "https://square.link/u/example" }] })],
+            })
+          : product({
+              status: "presale",
+              shipEstimate: "",
+              colors: [color({ presalePrice: 6000, sizes: [{ id: "m", label: "M", sku: "", checkoutUrl: "https://square.link/u/example" }] })],
+            })
+      const html = page(`/shop/${item.slug}/`, [item], terms)
+      expect(html).not.toContain("https://square.link/u/example")
+      expect(html).not.toContain("charged now")
+    }
+    for (const key of ["refundPolicy", "cancelPolicy", "returnsBody"] as const) {
+      const html = page(`/shop/${ready.slug}/`, [ready], { ...terms, [key]: "" })
+      expect(html).not.toContain("https://square.link/u/example")
+      expect(html).not.toContain("charged now")
+    }
+    const open = page(`/shop/${ready.slug}/`, [ready], terms)
+    expect(open).toContain("https://square.link/u/example")
+    expect(open).toContain("charged now")
+    expect(open).toContain("$60.00")
   })
 
   it("disables buy when the checkout url is missing", () => {
@@ -190,7 +294,8 @@ describe("pages", () => {
     expect(html).toContain("First drop coming soon.")
     expect(html.match(/First drop coming soon\./g)?.length).toBe(1)
     expect(html).toContain('class="hero-note"')
-    expect(html).toContain("Shop hoodies")
+    expect(html).not.toContain("Shop hoodies")
+    expect(html).toContain('href="/shop/">Shop</a>')
     expect(html).toContain('aria-label="Pray4BetterDays"')
     expect(html).toContain('class="logo" href="/">Pray4BetterDays</a>')
     expect(html).not.toContain("Hoodies.")
@@ -223,10 +328,13 @@ describe("pages", () => {
   it("shows instagram only when the handle is set", () => {
     const hidden = page("/contact/", [])
     const shown = page("/contact/", [], { instagram: "@pray4betterdays", email: "studio@pray4betterdays.com" })
+    expect(renderRoute("/contact/", { site: site(), products: [], hero: shot, now, assets: { css: [], js: "/assets/entry.js" } }).status).toBe(404)
+    expect(hidden).not.toContain('href="/contact/"')
     expect(hidden).not.toContain("instagram.com")
     expect(hidden).not.toContain("mailto:")
     expect(shown).toContain("https://instagram.com/pray4betterdays")
     expect(shown).toContain("mailto:studio@pray4betterdays.com")
+    expect(shown).toContain('href="/contact/"')
   })
 
   it("credits the founder and hides an empty story", () => {
@@ -247,9 +355,30 @@ describe("pages", () => {
     const privacy = page("/privacy/", [])
     const shipping = page("/shipping/", [])
     expect(privacy).toContain("Pray 4 Better Days LLC operates this site.")
-    expect(shipping).toContain("Pray 4 Better Days LLC sells hoodies on this site as pre-orders.")
+    expect(shipping).not.toContain("charged now")
+    expect(shipping).not.toContain("sells hoodies on this site as pre-orders")
     expect(privacy).toContain("Pray4BetterDays")
     expect(shipping).not.toContain("<h2>Returns</h2>")
+    expect(shipping).not.toContain("Card statements")
+    expect(privacy).not.toContain("Card statements")
+    expect((siteFile as Site).statementDescriptor).toBe("")
+    const named = page("/shipping/", [], { statementDescriptor: "PRAY4BETTERDAYS" })
+    const namedPrivacy = page("/privacy/", [], { statementDescriptor: "PRAY4BETTERDAYS" })
+    const namedHome = page("/", [], { statementDescriptor: "PRAY4BETTERDAYS" })
+    expect(named).toContain("Card statements show PRAY4BETTERDAYS.")
+    expect(namedPrivacy).toContain("Card statements show PRAY4BETTERDAYS.")
+    expect(namedHome).not.toContain("Card statements")
+    const filled = page("/shipping/", [], {
+      shipWindow: "Two weeks after the run closes.",
+      ...terms,
+      delayPolicy: "If a ship date slips, we write and offer a cancel.",
+    })
+    expect(filled).toContain("Two weeks after the run closes.")
+    expect(filled).toContain("Refunds are available before the order ships.")
+    expect(filled).toContain("You can cancel before the order ships.")
+    expect(filled).toContain("Final sale after delivery.")
+    expect(filled).toContain("If a ship date slips, we write and offer a cancel.")
+    expect(filled).not.toContain("charged now")
   })
 
   it("keeps the Square location id in site config only", () => {
@@ -271,5 +400,36 @@ describe("pages", () => {
     const client = readFileSync(join("src/client.ts"), "utf8")
     expect(client).not.toContain("setInterval")
     expect(client).not.toContain("Drop 01")
+  })
+
+  it("labels a generated frame and leaves a real photo alone", () => {
+    expect(shotAlt(shot)).toBe(shot.alt)
+    expect(shotAlt(shot).startsWith("Render:")).toBe(false)
+    const back = { ...shot, alt: "Back of the black zip hoodie.", render: true as const }
+    expect(shotAlt(back)).toBe("Render: Back of the black zip hoodie.")
+    expect(shotAlt({ ...back, alt: "Render: already labeled." })).toBe("Render: already labeled.")
+    const item = product({
+      colors: [color({ images: { front: shot, back, side: null, details: [] }, spin: [back] })],
+    })
+    const html = page(`/shop/${item.slug}/`, [item])
+    expect(html).toContain("Render: Back of the black zip hoodie.")
+    expect(html).toContain("Render, final may vary")
+    expect(html).toContain(`alt="${shot.alt}"`)
+    expect(html).not.toContain("ghost")
+  })
+
+  it("draws a visible focus ring and fits zoom to the stage", () => {
+    const css = readFileSync(join("src/styles/site.css"), "utf8")
+    expect(css).toContain(
+      ".size:has(input:focus-visible), .swatch:has(input:focus-visible), .view-tab:has(input:focus-visible){outline:var(--focus-width) solid var(--text);outline-offset:var(--focus-offset)}",
+    )
+    expect(css).not.toMatch(/\.spin\s*\{[^}]*display:\s*none/)
+    expect(css).toContain("touch-action: pan-x pan-y")
+    expect(fittedZoomWidth(390, 941)).toBe(390)
+    expect(fittedZoomWidth(2000, 941)).toBe(941)
+    expect(zoomDisplayWidth(390, 941, 1)).toBe(390)
+    expect(zoomDisplayWidth(390, 941, 4)).toBe(941)
+    const stage = page("/", [])
+    expect(stage).toContain('id="zoom-stage" tabindex="0"')
   })
 })

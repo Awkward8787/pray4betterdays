@@ -11,6 +11,17 @@
   "timeZone": "America/New_York",
   "about": "",
   "shippingBody": "",
+  "shipWindow": "",
+  "refundPolicy": "",
+  "cancelPolicy": "",
+  "delayPolicy": "",
   "returnsBody": "",
+  "statementDescriptor": "",
+  "squareShareNote": "",
+  "hostingNote": "",
+  "presalePriceCents": 8500,
+  "currency": "USD",
+  "shippingCost": "Free shipping",
+  "paymentLinkNote": "The Square Payment Link has no shipping line item. The buyer pays the hoodie price only. The seller absorbs processing fees. Do not show fees to buyers.",
   "sizeGuide": []
 }

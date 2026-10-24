@@ -1,4 +1,5 @@
 import {
+  contactReady,
   displayHeading,
   findProduct,
   formatEndDate,
@@ -8,7 +9,9 @@ import {
   productLabel,
   productPath,
   reachLinks,
+  RENDER_NOTE,
   scarcityLines,
+  shotAlt,
   sizeCta,
 } from "./catalog"
 import { iconBan, iconClose, iconMenu, iconNext, iconPrev, iconZoom } from "./icons"
@@ -50,6 +53,10 @@ export function esc(value: string): string {
   })
 }
 
+function navItems(site: Site): [string, string][] {
+  return NAV.filter(([href]) => href !== "/contact/" || contactReady(site)).map(([href, label]) => [href, label])
+}
+
 function paragraphs(text: string): string {
   return text
     .split(/\n{2,}/)
@@ -70,10 +77,18 @@ function picture(shot: Shot, opts: { eager: boolean; sizes: string; alt: string 
   return `<picture>${avifSource}${webpSource}<img src="${esc(fallback)}" alt="${esc(opts.alt)}" width="${shot.width}" height="${shot.height}" loading="${loading}" decoding="async"${priority}></picture>`
 }
 
+function renderBadge(shot: Shot, extra = ""): string {
+  if (!shot.render) return ""
+  const cls = extra ? `render-label ${extra}` : "render-label"
+  return `<span class="${cls}">${esc(RENDER_NOTE)}</span>`
+}
+
 function zoomButton(shot: Shot, eager: boolean, sizes: string): string {
+  const alt = shotAlt(shot)
   return `<figure class="stage" data-watch>
-    <button type="button" class="zoom-open" aria-label="Zoom: ${esc(shot.alt)}" data-zoom="${esc(shot.zoom)}" data-zoom-alt="${esc(shot.alt)}" data-zoom-w="${shot.width}" data-zoom-h="${shot.height}">
-      ${picture(shot, { eager, sizes, alt: shot.alt })}
+    <button type="button" class="zoom-open" aria-label="Zoom: ${esc(alt)}" data-zoom="${esc(shot.zoom)}" data-zoom-alt="${esc(alt)}" data-zoom-w="${shot.width}" data-zoom-h="${shot.height}">
+      ${picture(shot, { eager, sizes, alt })}
+      ${renderBadge(shot)}
       <span class="zoom-label">${iconZoom} Zoom</span>
     </button>
   </figure>`
@@ -85,15 +100,26 @@ function ctaMarkup(cta: Cta, sizeId: string, fallback = false): string {
   if (cta.kind === "link") {
     return `<a class="button${extra}"${size} href="${esc(cta.href)}">${esc(cta.label)}</a>`
   }
-  const icon = cta.label === "Sold out" || cta.label === "Pre-order closed" ? iconBan : ""
-  return `<button type="button" class="button${extra}"${size} disabled>${icon} ${esc(cta.label)}</button>`
+  const icon = cta.label === "Sold out" || cta.label === "Pre-order closed" ? `${iconBan} ` : ""
+  return `<button type="button" class="button${extra}"${size} disabled>${icon}${esc(cta.label)}</button>`
 }
 
 function moneyMarkup(product: Product, color: Colorway): string {
   const price = priceView(product, color)
   if (!price.current) return ""
-  const compare = price.compare ? `<s>${esc(price.compare)}</s>` : ""
-  return `<p class="price"><span>${esc(price.current)}</span>${compare}</p>`
+  return `<p class="price"><span>${esc(price.current)}</span></p>`
+}
+
+function shippingCostMarkup(site: Site): string {
+  const text = site.shippingCost.trim()
+  if (!text) return ""
+  return `<p class="shipping-cost">${esc(text)}</p>`
+}
+
+function totalMarkup(product: Product, color: Colorway): string {
+  const price = priceView(product, color)
+  if (!price.current) return ""
+  return `<p class="total"><span>Total</span> <span>${esc(price.current)}</span></p>`
 }
 
 function scarcityMarkup(color: Colorway): string {
@@ -110,7 +136,30 @@ function viewsFor(color: Colorway): { id: string; label: string; shot: Shot }[] 
   return views
 }
 
-function panel(product: Product, color: Colorway, now: Date): string {
+function spinBlock(frames: Shot[]): string {
+  if (!frames.length) return ""
+  const first = frames[0]
+  const alt = shotAlt(first)
+  const hidden = first.render ? "" : " hidden"
+  return `<div class="spin" data-spin role="region" aria-roledescription="carousel" aria-label="Product views" tabindex="0">
+    <div class="spin-frame" data-watch>
+      <img data-spin-view src="${esc(first.zoom)}" alt="${esc(alt)}" width="${first.width}" height="${first.height}">
+      <span class="render-label" data-render-label${hidden}>${esc(RENDER_NOTE)}</span>
+    </div>
+    <div class="spin-controls">
+      <button type="button" class="button secondary" data-spin-prev>${iconPrev} Previous frame</button>
+      <button type="button" class="button secondary" data-spin-next>${iconNext} Next frame</button>
+    </div>
+    <ol hidden>${frames
+      .map(
+        (frame) =>
+          `<li data-frame data-src="${esc(frame.zoom)}" data-alt="${esc(shotAlt(frame))}" data-render="${frame.render ? "true" : "false"}"></li>`,
+      )
+      .join("")}</ol>
+  </div>`
+}
+
+function panel(color: Colorway): string {
   const views = viewsFor(color)
   const only = views.length <= 1
   const tabs = only
@@ -128,31 +177,17 @@ function panel(product: Product, color: Colorway, now: Date): string {
     .join("")
   const details = color.images.details.length
     ? `<h2>Details</h2><ul class="details">${color.images.details
-        .map(
-          (shot) => `<li><button type="button" class="detail-open" aria-label="Zoom: ${esc(shot.alt)}" data-zoom="${esc(shot.zoom)}" data-zoom-alt="${esc(shot.alt)}" data-zoom-w="${shot.width}" data-zoom-h="${shot.height}">${picture(shot, { eager: false, sizes: "40vw", alt: shot.alt })}</button></li>`,
-        )
+        .map((shot) => {
+          const alt = shotAlt(shot)
+          return `<li><button type="button" class="detail-open" aria-label="Zoom: ${esc(alt)}" data-zoom="${esc(shot.zoom)}" data-zoom-alt="${esc(alt)}" data-zoom-w="${shot.width}" data-zoom-h="${shot.height}">${picture(shot, { eager: false, sizes: "40vw", alt })}${renderBadge(shot)}</button></li>`
+        })
         .join("")}</ul>`
     : ""
-  const spin = color.spin.length
-    ? `<div class="spin" data-spin tabindex="0" aria-label="Frame sequence">
-        <img data-spin-view src="${esc(color.spin[0].zoom)}" alt="${esc(color.spin[0].alt)}" width="${color.spin[0].width}" height="${color.spin[0].height}">
-        <div class="spin-controls">
-          <button type="button" class="button secondary" data-spin-prev>${iconPrev} Previous frame</button>
-          <button type="button" class="button secondary" data-spin-next>${iconNext} Next frame</button>
-        </div>
-        <ol hidden>${color.spin
-          .map(
-            (frame) =>
-              `<li data-frame data-src="${esc(frame.zoom)}" data-alt="${esc(frame.alt)}"></li>`,
-          )
-          .join("")}</ol>
-      </div>`
-    : ""
-  return `<div class="panel" data-color="${esc(color.id)}">${tabs}${shots}${spin}${details}</div>`
+  return `<div class="panel" data-color="${esc(color.id)}">${tabs}${shots}${spinBlock(color.spin)}${details}</div>`
 }
 
-function group(product: Product, color: Colorway, now: Date): string {
-  const states = color.sizes.map((size) => sizeCta(product, color, size.checkoutUrl, now))
+function group(product: Product, color: Colorway, site: Site, now: Date): string {
+  const states = color.sizes.map((size) => sizeCta(product, color, size.checkoutUrl, now, site))
   const enabledIndex = states.findIndex((state) => state.kind === "link")
   const sharedDisabled = states.every((state) => state.kind === "disabled" && state.label === states[0]?.label)
   const sizes = color.sizes
@@ -160,18 +195,23 @@ function group(product: Product, color: Colorway, now: Date): string {
       const cta = states[index]
       const disabled = cta.kind === "disabled" ? " disabled" : ""
       const checked = index === enabledIndex ? " checked" : ""
-      const note = cta.kind === "disabled" && !sharedDisabled ? `<span>${esc(cta.label)}</span>` : ""
+      const showNote = cta.kind === "disabled" && (cta.label !== "Coming soon" || !sharedDisabled)
+      const note = showNote ? `<span class="size-state">${esc(cta.label)}</span>` : ""
       const sku = size.sku.trim() ? `<span class="sku">${esc(size.sku)}</span>` : ""
       return `<label class="size"><input class="size-input" type="radio" name="size-${esc(color.id)}" value="${esc(size.id)}"${checked}${disabled}><span>${esc(size.label)}</span>${note}${sku}</label>`
     })
     .join("")
   const buys = color.sizes
-    .map((size) => ctaMarkup(sizeCta(product, color, size.checkoutUrl, now), size.id))
+    .map((size) => ctaMarkup(sizeCta(product, color, size.checkoutUrl, now, site), size.id))
     .join("")
-  const fallbackCta = sizeCta(product, color, color.sizes[0]?.checkoutUrl ?? "", now)
+  const fallbackCta = sizeCta(product, color, color.sizes[0]?.checkoutUrl ?? "", now, site)
   const fallback = ctaMarkup(fallbackCta.kind === "link" ? { kind: "disabled", label: "Coming soon" } : fallbackCta, "", true)
+  const disclosure = states.some((state) => state.kind === "link" && state.label === "Pre-order") ? presaleCopy(product, site) : ""
   return `<div class="group" data-color="${esc(color.id)}">
     ${moneyMarkup(product, color)}
+    ${priceView(product, color).current ? shippingCostMarkup(site) : ""}
+    ${totalMarkup(product, color)}
+    ${disclosure}
     ${scarcityMarkup(color)}
     <fieldset class="sizes"><legend>Size</legend>${sizes}</fieldset>
     <div class="buys">${buys}${fallback}</div>
@@ -179,7 +219,6 @@ function group(product: Product, color: Colorway, now: Date): string {
 }
 
 function presaleCopy(product: Product, site: Site): string {
-  if (product.status !== "presale") return ""
   const end = product.presaleEndsAt ? formatEndDate(product.presaleEndsAt, site.timeZone) : null
   const ship = product.shipEstimate.trim()
     ? `<p class="ship">Ship window: ${esc(product.shipEstimate.trim())}</p>`
@@ -205,13 +244,12 @@ function productArticle(product: Product, site: Site, now: Date): string {
     .join("")
   const description = product.description.trim() ? `<div class="prose">${paragraphs(product.description)}</div>` : ""
   return `<article class="product product-layout"${end}>
-    <div class="gallery">${product.colors.map((color) => panel(product, color, now)).join("")}</div>
+    <div class="gallery">${product.colors.map((color) => panel(color)).join("")}</div>
     <div class="buy">
       ${title}
       ${description}
       <fieldset class="choices"><legend>Color</legend>${colors}</fieldset>
-      ${product.colors.map((color) => group(product, color, now)).join("")}
-      ${presaleCopy(product, site)}
+      ${product.colors.map((color) => group(product, color, site, now)).join("")}
     </div>
   </article>`
 }
@@ -221,29 +259,35 @@ function card(product: Product, site: Site, now: Date, lead: boolean): string {
   const front = color?.images.front
   const back = color?.images.back
   const frame = front
-    ? `<span class="frame">${picture(front, { eager: lead, sizes: CARD_SIZES, alt: front.alt }).replace("<picture>", '<picture class="front">')}${
-        back ? picture(back, { eager: false, sizes: CARD_SIZES, alt: "" }).replace("<picture>", '<picture class="back">') : ""
+    ? `<span class="frame">${picture(front, { eager: lead, sizes: CARD_SIZES, alt: shotAlt(front) }).replace("<picture>", '<picture class="front">')}${renderBadge(front)}${
+        back
+          ? `${picture(back, { eager: false, sizes: CARD_SIZES, alt: shotAlt(back) }).replace("<picture>", '<picture class="back">')}${renderBadge(back, "back")}`
+          : ""
       }</span>`
     : ""
   const name = product.name.trim() ? `<span class="card-name">${esc(product.name.trim())}</span>` : ""
   const blocked = color ? scarcityLines(color) : []
-  const state = cardState(product, now)
+  const state = cardState(product, site, now)
   const price = color ? moneyMarkup(product, color) : ""
+  const shipping = price ? shippingCostMarkup(site) : ""
+  const total = color ? totalMarkup(product, color) : ""
   const run = blocked.length ? `<span class="runs">${blocked.map((line) => `<span>${esc(line)}</span>`).join("")}</span>` : ""
-  return `<a class="card${lead ? " card-lead" : ""}" href="${productPath(product.slug)}">${frame}<span class="card-copy">${name}${price}${state}${run}</span></a>`
+  return `<a class="card${lead ? " card-lead" : ""}" href="${productPath(product.slug)}">${frame}<span class="card-copy">${name}${price}${shipping}${total}${state}${run}</span></a>`
 }
 
-function cardState(product: Product, now: Date): string {
+function cardState(product: Product, site: Site, now: Date): string {
   const color = product.colors[0]
   if (!color) return ""
-  const states = color.sizes.map((size) => sizeCta(product, color, size.checkoutUrl, now))
+  const states = color.sizes.map((size) => sizeCta(product, color, size.checkoutUrl, now, site))
   if (states.some((state) => state.kind === "disabled" && state.label === "Sold out") && states.every((state) => state.kind === "disabled")) {
     return `<span class="card-status">${iconBan} Sold out</span>`
   }
   if (product.status === "comingsoon" || states.every((state) => state.kind === "disabled" && state.label === "Coming soon")) {
     return `<span class="card-status">Coming soon</span>`
   }
-  if (product.status === "presale") return `<span class="card-status">Pre-order</span>`
+  if (product.status === "presale" && states.some((state) => state.kind === "link" && state.label === "Pre-order")) {
+    return `<span class="card-status">Pre-order</span>`
+  }
   if (states.every((state) => state.kind === "disabled")) {
     return `<span class="card-status">${esc(states[0]?.kind === "disabled" ? states[0].label : "Coming soon")}</span>`
   }
@@ -272,24 +316,31 @@ function sizeGuide(site: Site): string {
   return `<table class="guide"><caption>Size guide</caption><thead><tr><th scope="col">Size</th><th scope="col">Chest</th><th scope="col">Length</th><th scope="col">Sleeve</th></tr></thead><tbody>${rows}</tbody></table>`
 }
 
+function currentAttr(path: string, href: string): string {
+  const bare = href.replace(/\/$/, "")
+  return path === href || path === bare ? ` aria-current="page"` : ""
+}
+
 function header(site: Site, path: string): string {
-  const primary = NAV.filter(([href]) => href === "/shop/" || href === "/contact/")
-    .map(([href, label]) => `<a href="${href}"${path === href.replace(/\/$/, "") || path === href ? ` aria-current="page"` : ""}>${label}</a>`)
+  const primary = navItems(site)
+    .filter(([href]) => href === "/shop/" || href === "/contact/")
+    .map(([href, label]) => `<a href="${href}"${currentAttr(path, href)}>${label}</a>`)
     .join("")
   const logo = `<a class="logo" href="/">${esc(site.brand)}</a>`
   return `<header class="site-header">${logo}<nav class="primary-nav" aria-label="Primary">${primary}</nav><button type="button" class="menu-button" data-menu aria-expanded="false" aria-controls="nav-dialog">${iconMenu} Menu</button></header>`
 }
 
 function footer(site: Site, path: string): string {
-  const links = NAV.map(([href, label]) => {
-    const current = path === href || path === href.replace(/\/$/, "")
-    return `<a href="${href}"${current ? ` aria-current="page"` : ""}>${label}</a>`
-  }).join("")
+  const links = navItems(site)
+    .map(([href, label]) => `<a href="${href}"${currentAttr(path, href)}>${label}</a>`)
+    .join("")
   return `<footer class="site-footer"><p class="legal">© ${site.year} ${esc(site.legalName)}. Designed by ${esc(site.founder)}.</p><nav class="footer-nav" aria-label="Footer">${links}</nav></footer>`
 }
 
-function dialogs(): string {
-  const links = NAV.map(([href, label]) => `<a href="${href}">${label}</a>`).join("")
+function dialogs(site: Site): string {
+  const links = navItems(site)
+    .map(([href, label]) => `<a href="${href}">${label}</a>`)
+    .join("")
   return `<dialog id="nav-dialog" class="nav-dialog" aria-label="Menu">
     <form method="dialog"><button type="submit" class="button secondary">${iconClose} Close</button></form>
     <nav>${links}</nav>
@@ -300,13 +351,24 @@ function dialogs(): string {
       <button type="button" class="button secondary" id="zoom-out">Zoom out</button>
       <button type="submit" class="button secondary">${iconClose} Close</button>
     </form>
-    <div class="zoom-stage" id="zoom-stage"><img id="zoom-img" alt="" width="941" height="1022"></div>
+    <div class="zoom-stage" id="zoom-stage" tabindex="0" aria-label="Zoomed photo. Arrow keys pan."><img id="zoom-img" alt="" width="941" height="1022"></div>
   </dialog>`
+}
+
+function absoluteUrl(site: Site, path: string): string {
+  if (/^https:\/\//i.test(path)) return path
+  const suffix = path.startsWith("/") ? path : `/${path}`
+  return `https://${site.domain}${suffix}`
 }
 
 function documentPage(ctx: Ctx, opts: { title: string; description: string; path: string; main: string; status?: number }): { status: number; html: string } {
   const css = ctx.assets.css.map((href) => `<link rel="stylesheet" href="${esc(href)}">`).join("")
   const canonical = `https://${ctx.site.domain}${opts.path === "/" ? "/" : opts.path.endsWith("/") ? opts.path : `${opts.path}/`}`
+  const image = ctx.hero?.zoom ? absoluteUrl(ctx.site, ctx.hero.zoom) : ""
+  const imageMeta = image
+    ? `<meta property="og:image" content="${esc(image)}">
+  <meta name="twitter:image" content="${esc(image)}">`
+    : ""
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -315,6 +377,13 @@ function documentPage(ctx: Ctx, opts: { title: string; description: string; path
   <title>${esc(opts.title)}</title>
   <meta name="description" content="${esc(opts.description)}">
   <link rel="canonical" href="${esc(canonical)}">
+  <meta property="og:title" content="${esc(opts.title)}">
+  <meta property="og:description" content="${esc(opts.description)}">
+  <meta property="og:url" content="${esc(canonical)}">
+  ${imageMeta}
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${esc(opts.title)}">
+  <meta name="twitter:description" content="${esc(opts.description)}">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   ${css}
 </head>
@@ -323,7 +392,7 @@ function documentPage(ctx: Ctx, opts: { title: string; description: string; path
   ${header(ctx.site, opts.path)}
   <main id="content">${opts.main}</main>
   ${footer(ctx.site, opts.path)}
-  ${dialogs()}
+  ${dialogs(ctx.site)}
   <script type="module" src="${esc(ctx.assets.js)}"></script>
 </body>
 </html>`
@@ -331,36 +400,35 @@ function documentPage(ctx: Ctx, opts: { title: string; description: string; path
 }
 
 function home(ctx: Ctx): string {
-  const hero = ctx.hero
-    ? zoomButton(ctx.hero, true, HERO_SIZES)
-    : ""
+  const hero = ctx.hero ? zoomButton(ctx.hero, true, HERO_SIZES) : ""
   const links = ctx.products.length ? [] : reachLinks(ctx.site)
   const reach = links.length
     ? `<p class="reach">${links.map((link) => `<a class="text-link" href="${esc(link.href)}">${esc(link.label)}</a>`).join("")}</p>`
     : ""
-  const note = ctx.products.length
-    ? ""
-    : `<div class="hero-note"><p>First drop coming soon.</p>${reach}</div>`
+  const note = ctx.products.length ? "" : `<div class="hero-note"><p>First drop coming soon.</p>${reach}</div>`
+  const shop = ctx.products.length ? `<p><a class="button" href="/shop/">Shop hoodies</a></p>` : ""
   const drop = ctx.products.length
     ? `<section class="drop"><h2>Current drop</h2>${catalog(ctx.products, ctx.site, ctx.now)}</section>`
     : ""
   return `<section class="hero">
     <div class="hero-copy">
       <h1 class="display wordmark" aria-label="${esc(ctx.site.brand)}">Pray4<br>BetterDays</h1>
-      <p><a class="button" href="/shop/">Shop hoodies</a></p>
+      ${shop}
+      ${note}
     </div>
     ${hero}
-    ${note}
   </section>
   ${drop}`
 }
 
 function about(ctx: Ctx): string {
-  const story = ctx.site.about.trim() ? `<div class="prose">${paragraphs(ctx.site.about)}</div>` : ""
+  const story = ctx.site.about.trim() ? paragraphs(ctx.site.about) : ""
   return `<article class="page">
     <h1 class="display title">About</h1>
-    <p>Designed by ${esc(ctx.site.founder)}, founder and designer.</p>
-    ${story}
+    <div class="prose">
+      <p>Designed by ${esc(ctx.site.founder)}, founder and designer.</p>
+      ${story}
+    </div>
   </article>`
 }
 
@@ -369,22 +437,38 @@ function contact(ctx: Ctx): string {
   const handle = instagramHandle(ctx.site.instagram)
   const mail = email ? `<p><a class="text-link" href="mailto:${esc(email)}">${esc(email)}</a></p>` : ""
   const ig = handle ? `<p><a class="text-link" href="https://instagram.com/${esc(handle)}">Instagram</a></p>` : ""
-  return `<article class="page"><h1 class="display title">Contact</h1>${mail}${ig}</article>`
+  return `<article class="page"><h1 class="display title">Contact</h1><div class="prose">${mail}${ig}</div></article>`
+}
+
+function policyBlock(title: string, body: string): string {
+  const text = body.trim()
+  if (!text) return ""
+  return `<h2>${esc(title)}</h2><div class="prose">${paragraphs(text)}</div>`
+}
+
+function statementMarkup(site: Site): string {
+  const name = site.statementDescriptor.trim()
+  if (!name) return ""
+  return `<p class="statement">Card statements show ${esc(name)}.</p>`
 }
 
 function shipping(ctx: Ctx): string {
-  const body = ctx.site.shippingBody.trim() ? `<div class="prose">${paragraphs(ctx.site.shippingBody)}</div>` : ""
-  const returns = ctx.site.returnsBody.trim()
-    ? `<h2>Returns</h2><div class="prose">${paragraphs(ctx.site.returnsBody)}</div>`
+  const links = reachLinks(ctx.site)
+  const contactBlock = links.length
+    ? `<h2>Contact</h2><p class="reach">${links.map((link) => `<a class="text-link" href="${esc(link.href)}">${esc(link.label)}</a>`).join("")}</p>`
     : ""
+  const extra = ctx.site.shippingBody.trim() ? `<div class="prose">${paragraphs(ctx.site.shippingBody)}</div>` : ""
   return `<article class="page">
     <h1 class="display title">Shipping and returns</h1>
-    <div class="prose">
-      <p>${esc(ctx.site.legalName)} sells hoodies on this site as pre-orders. The card is charged now through Square. A ship window appears on the product page when one is set. An end date, when one is set, is printed on the product. After that date the Pre-order button turns off.</p>
-      <p>Sold out sizes stay off. A run count is shown only when that count is set.</p>
-    </div>
-    ${body}
-    ${returns}
+    ${policyBlock("Shipping cost", ctx.site.shippingCost)}
+    ${policyBlock("Ship window", ctx.site.shipWindow)}
+    ${policyBlock("Refunds", ctx.site.refundPolicy)}
+    ${policyBlock("Cancellation", ctx.site.cancelPolicy)}
+    ${policyBlock("Delays", ctx.site.delayPolicy)}
+    ${policyBlock("Returns", ctx.site.returnsBody)}
+    ${extra}
+    ${contactBlock}
+    ${statementMarkup(ctx.site)}
   </article>`
 }
 
@@ -392,21 +476,34 @@ function privacy(ctx: Ctx): string {
   const email = ctx.site.email.trim()
     ? `<p>Mail sent to ${esc(ctx.site.email.trim())} is received by ${esc(ctx.site.legalName)}.</p>`
     : ""
-  return `<article class="page prose">
+  const handle = instagramHandle(ctx.site.instagram)
+  const ig = handle ? `<p>${esc(ctx.site.legalName)} can be reached on Instagram at ${esc(handle)}.</p>` : ""
+  const share = ctx.site.squareShareNote.trim() ? paragraphs(ctx.site.squareShareNote) : ""
+  const hosting = ctx.site.hostingNote.trim() ? paragraphs(ctx.site.hostingNote) : ""
+  return `<article class="page">
     <h1 class="display title">Privacy</h1>
-    <p>${esc(ctx.site.legalName)} operates this site. The pages are static files. The site does not create accounts and does not run advertising pixels.</p>
-    <p>Checkout leaves this site for Square. Square processes the card payment and any shipping address collected on that page.</p>
-    ${email}
+    <div class="prose">
+      <p>${esc(ctx.site.legalName)} operates this site. The pages are static files. The site does not create accounts and does not run advertising pixels.</p>
+      <p>Checkout leaves this site for Square. Square processes the card payment and any shipping address collected on that page.</p>
+      ${share}
+      ${hosting}
+      ${email}
+      ${ig}
+      ${statementMarkup(ctx.site)}
+    </div>
   </article>`
 }
 
 function notFound(ctx: Ctx): { status: number; html: string } {
+  const shop = ctx.products.length
+    ? `<p><a class="button" href="/shop/">Shop hoodies</a></p>`
+    : `<p><a class="text-link" href="/shop/">Shop</a></p>`
   return documentPage(ctx, {
     title: `Page not found · ${ctx.site.brand}`,
     description: `${ctx.site.brand} sells hoodies.`,
     path: "/404",
     status: 404,
-    main: `<article class="page"><h1 class="display title">Page not found</h1><p><a class="button" href="/shop/">Shop hoodies</a></p></article>`,
+    main: `<article class="page"><h1 class="display title">Page not found</h1><div class="prose">${shop}</div></article>`,
   })
 }
 
@@ -429,6 +526,7 @@ export function renderRoute(rawPath: string, ctx: Ctx): { status: number; html: 
     return documentPage(ctx, { title: `About · ${brand}`, description, path: "/about/", main: about(ctx) })
   }
   if (path === "/contact") {
+    if (!contactReady(ctx.site)) return notFound(ctx)
     return documentPage(ctx, { title: `Contact · ${brand}`, description, path: "/contact/", main: contact(ctx) })
   }
   if (path === "/shipping") {

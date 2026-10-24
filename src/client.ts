@@ -1,5 +1,18 @@
 import { iconBan } from "./lib/icons"
 
+export function fittedZoomWidth(stageWidth: number, naturalWidth: number): number {
+  const natural = Number.isFinite(naturalWidth) && naturalWidth > 0 ? naturalWidth : 1
+  if (!Number.isFinite(stageWidth) || stageWidth <= 0) return Math.round(natural)
+  return Math.round(Math.min(stageWidth, natural))
+}
+
+export function zoomDisplayWidth(fitWidth: number, naturalWidth: number, scale: number): number {
+  const natural = Number.isFinite(naturalWidth) && naturalWidth > 0 ? naturalWidth : 1
+  const fit = Number.isFinite(fitWidth) && fitWidth > 0 ? Math.min(fitWidth, natural) : natural
+  const factor = Number.isFinite(scale) && scale > 0 ? scale : 1
+  return Math.round(Math.min(natural, Math.max(fit, fit * factor)))
+}
+
 function closedButton(): HTMLButtonElement {
   const button = document.createElement("button")
   button.type = "button"
@@ -41,14 +54,26 @@ function bindZoom(): void {
   const stage = document.querySelector<HTMLElement>("#zoom-stage")
   if (!dialog || !image || !stage) return
   let opener: HTMLElement | null = null
+  let fit = 1
   let scale = 1
 
-  const apply = () => {
-    const base = Number(image.dataset.baseW || image.naturalWidth || image.width || 1)
-    image.style.width = `${Math.round(base * scale)}px` // ds-allow-hardcode
+  const natural = () => {
+    const value = Number(image.dataset.baseW || image.naturalWidth || 0)
+    return value > 0 ? value : 1
   }
 
-  const reset = () => {
+  const apply = () => {
+    const width = zoomDisplayWidth(fit, natural(), scale)
+    image.style.width = `${width}px` // ds-allow-hardcode
+  }
+
+  const capScale = (next: number) => {
+    const limit = fit > 0 ? Math.max(1, natural() / fit) : 1
+    return Math.min(limit, Math.max(1, next))
+  }
+
+  const fitToStage = () => {
+    fit = fittedZoomWidth(stage.clientWidth, natural())
     scale = 1
     apply()
   }
@@ -61,31 +86,45 @@ function bindZoom(): void {
       image.width = Number(button.dataset.zoomW || 0)
       image.height = Number(button.dataset.zoomH || 0)
       image.dataset.baseW = button.dataset.zoomW || ""
-      reset()
       dialog.showModal()
+      fitToStage()
     })
   })
 
   dialog.addEventListener("close", () => {
     opener?.focus()
     image.removeAttribute("src")
-    reset()
+    scale = 1
+    apply()
   })
 
   document.querySelector("#zoom-in")?.addEventListener("click", () => {
-    scale = Math.min(4, scale * 1.25)
+    scale = capScale(scale * 1.25)
     apply()
   })
   document.querySelector("#zoom-out")?.addEventListener("click", () => {
-    scale = Math.max(1, scale / 1.25)
+    scale = capScale(scale / 1.25)
     apply()
   })
 
   stage.addEventListener("wheel", (event) => {
     event.preventDefault()
-    scale = event.deltaY < 0 ? Math.min(4, scale * 1.1) : Math.max(1, scale / 1.1)
+    scale = capScale(event.deltaY < 0 ? scale * 1.1 : scale / 1.1)
     apply()
   }, { passive: false })
+
+  dialog.addEventListener("keydown", (event) => {
+    const step = 40
+    const delta =
+      event.key === "ArrowLeft" ? [-step, 0] :
+      event.key === "ArrowRight" ? [step, 0] :
+      event.key === "ArrowUp" ? [0, -step] :
+      event.key === "ArrowDown" ? [0, step] :
+      null
+    if (!delta) return
+    event.preventDefault()
+    stage.scrollBy(delta[0], delta[1])
+  })
 
   let start = 0
   let baseScale = 1
@@ -102,7 +141,7 @@ function bindZoom(): void {
   stage.addEventListener("touchmove", (event) => {
     if (event.touches.length !== 2 || !start) return
     event.preventDefault()
-    scale = Math.min(4, Math.max(1, baseScale * (distance(event.touches) / start)))
+    scale = capScale(baseScale * (distance(event.touches) / start))
     apply()
   }, { passive: false })
 }
@@ -113,11 +152,13 @@ function bindSpin(): void {
     const frames = [...region.querySelectorAll<HTMLElement>("[data-frame]")]
     if (!view || frames.length === 0) return
     let index = 0
+    const label = region.querySelector<HTMLElement>("[data-render-label]")
     const show = (next: number) => {
       index = (next + frames.length) % frames.length
       const frame = frames[index]
       view.src = frame.dataset.src || ""
       view.alt = frame.dataset.alt || ""
+      if (label) label.hidden = frame.dataset.render !== "true"
     }
     show(0)
     region.querySelector("[data-spin-prev]")?.addEventListener("click", () => show(index - 1))

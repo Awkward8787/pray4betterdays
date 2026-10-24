@@ -27,5 +27,13 @@
   --space-md: 1.25rem;
   --space-lg: 2.5rem;
   --space-xl: 4.5rem;
+  --page-min: 100dvh;
+  --hero-media: 45vh;
+  --media: 26vh;
+  --media-mid: 48vh;
+  --media-max: 60vh;
+  --detail-media: 28vh;
+  --spin-media: 34vh;
+  --zoom-block: calc(100dvh - var(--space-lg));
   --grain: url("/grain.svg");
 }

@@ -19,9 +19,9 @@ const site = JSON.parse(readFileSync(join(root, "src/data/site.json"), "utf8")) 
 const hero = JSON.parse(readFileSync(join(root, "src/data/media.json"), "utf8")) as Shot
 
 const fixture: Product = {
-  name: "",
+  name: "Black zip hoodie",
   slug: "first-hoodie",
-  status: "comingsoon",
+  status: "presale",
   description: "",
   shipEstimate: "",
   presaleEndsAt: null,
@@ -30,9 +30,8 @@ const fixture: Product = {
       id: "black",
       name: "Black",
       price: null,
-      presalePrice: null,
-      regularPrice: null,
-      currency: "USD",
+      presalePrice: site.presalePriceCents,
+      currency: site.currency,
       runSize: null,
       remaining: null,
       images: { front: hero, back: null, side: null, details: [] },

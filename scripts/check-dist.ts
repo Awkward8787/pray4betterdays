@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, statSync } from "node:fs"
 import { extname, join } from "node:path"
+import { missingProductNames } from "../src/lib/catalog"
 
 const root = process.cwd()
 const site = JSON.parse(readFileSync(join(root, "src/data/site.json"), "utf8")) as {
@@ -7,8 +8,12 @@ const site = JSON.parse(readFileSync(join(root, "src/data/site.json"), "utf8")) 
 }
 const productsRaw = readFileSync(join(root, "src/data/products.json"), "utf8").trim()
 const failures: string[] = []
+const products = JSON.parse(productsRaw) as { name?: string }[]
 
-if (productsRaw !== "[]") failures.push("src/data/products.json must ship as []")
+if (!Array.isArray(products) || productsRaw !== "[]") failures.push("src/data/products.json must ship as []")
+if (Array.isArray(products)) {
+  for (const failure of missingProductNames(products)) failures.push(failure)
+}
 
 const textExt = new Set([".html", ".css", ".js", ".svg", ".xml", ".txt", ".json"])
 const needles = ["FIXTURE_SENTINEL_DO_NOT_SHIP", "sq0atp", "EAAA", "sk_live"]

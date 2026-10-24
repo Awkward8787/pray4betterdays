@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
+import { contactReady } from "../src/lib/catalog"
 import { renderRoute, type Assets } from "../src/lib/render"
 import type { Product, Shot, Site } from "../src/lib/types"
 
@@ -27,7 +28,7 @@ function writePage(route: string, file: string): void {
 writePage("/", join(dist, "index.html"))
 writePage("/shop/", join(dist, "shop/index.html"))
 writePage("/about/", join(dist, "about/index.html"))
-writePage("/contact/", join(dist, "contact/index.html"))
+if (contactReady(site)) writePage("/contact/", join(dist, "contact/index.html"))
 writePage("/shipping/", join(dist, "shipping/index.html"))
 writePage("/privacy/", join(dist, "privacy/index.html"))
 writePage("/missing", join(dist, "404.html"))
@@ -36,7 +37,8 @@ for (const product of products) {
   writePage(`/shop/${product.slug}/`, join(dist, "shop", product.slug, "index.html"))
 }
 
-const urls = ["/", "/shop/", "/about/", "/contact/", "/shipping/", "/privacy/", ...products.map((product) => `/shop/${product.slug}/`)]
+const urls = ["/", "/shop/", "/about/", "/shipping/", "/privacy/", ...products.map((product) => `/shop/${product.slug}/`)]
+if (contactReady(site)) urls.splice(3, 0, "/contact/")
 const body = urls.map((url) => `  <url><loc>https://${site.domain}${url}</loc></url>`).join("\n")
 writeFileSync(
   join(dist, "sitemap.xml"),

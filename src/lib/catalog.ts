@@ -1,7 +1,12 @@
-import type { Colorway, Cta, PriceView, Product, Site, Status } from "./types"
+import type { Colorway, Cta, PriceView, Product, Shot, Site, Status } from "./types"
 
 // Prices are integer US cents. Null means unset, and the page shows no price.
-// checkoutUrl is a Square hosted payment link. An empty string cannot sell.
+// There is no former-price field. A compare-at price would be a claim this drop never earned.
+// checkoutUrl is an https Square hosted payment link. Anything else cannot sell.
+
+const SQUARE_HOSTS = ["square.link", "checkout.square.site", "squareup.com"]
+
+export const RENDER_NOTE = "Render, final may vary"
 
 export const SIZE_RUN: { id: string; label: string }[] = [
   { id: "s", label: "S" },
@@ -14,8 +19,43 @@ export const SIZE_RUN: { id: string; label: string }[] = [
 
 export function safeCheckoutUrl(url: string): string {
   const trimmed = url.trim()
-  if (!/^https?:\/\//i.test(trimmed)) return ""
-  return trimmed
+  let parsed: URL
+  try {
+    parsed = new URL(trimmed)
+  } catch {
+    return ""
+  }
+  if (parsed.protocol !== "https:") return ""
+  const host = parsed.hostname.toLowerCase()
+  const allowed = SQUARE_HOSTS.some((name) => host === name || host.endsWith(`.${name}`))
+  return allowed ? trimmed : ""
+}
+
+export function shotAlt(shot: Shot): string {
+  const alt = shot.alt.trim()
+  if (!shot.render) return alt
+  if (alt.startsWith("Render:")) return alt
+  return alt ? `Render: ${alt}` : "Render:"
+}
+
+export function contactReady(site: Site): boolean {
+  return Boolean(site.email.trim() || instagramHandle(site.instagram))
+}
+
+export function preorderTermsReady(product: Product, site: Site): boolean {
+  return Boolean(
+    product.shipEstimate.trim() &&
+      site.refundPolicy.trim() &&
+      site.cancelPolicy.trim() &&
+      site.returnsBody.trim(),
+  )
+}
+
+export function missingProductNames(products: { name?: string }[]): string[] {
+  return products.flatMap((product, index) => {
+    const name = product.name?.trim() ?? ""
+    return name ? [] : [`product ${index} is missing a name`]
+  })
 }
 
 export function instagramHandle(raw: string): string {
@@ -48,7 +88,7 @@ export function colorBlocked(color: Colorway): boolean {
   return color.remaining === 0
 }
 
-export function sizeCta(product: Product, color: Colorway, checkoutUrl: string, now: Date): Cta {
+export function sizeCta(product: Product, color: Colorway, checkoutUrl: string, now: Date, site: Site): Cta {
   const href = safeCheckoutUrl(checkoutUrl)
   if (product.status === "soldout" || colorBlocked(color)) {
     return { kind: "disabled", label: "Sold out" }
@@ -59,27 +99,28 @@ export function sizeCta(product: Product, color: Colorway, checkoutUrl: string, 
   if (!href || product.status === "comingsoon") {
     return { kind: "disabled", label: "Coming soon" }
   }
-  if (product.status === "presale") return { kind: "link", label: "Pre-order", href }
+  if (product.status === "presale") {
+    if (color.presalePrice == null || !preorderTermsReady(product, site)) {
+      return { kind: "disabled", label: "Coming soon" }
+    }
+    return { kind: "link", label: "Pre-order", href }
+  }
+  if (color.price == null) return { kind: "disabled", label: "Coming soon" }
   return { kind: "link", label: "Buy now", href }
 }
 
 export function priceView(product: Product, color: Colorway): PriceView {
   if (product.status === "presale") {
-    if (color.presalePrice == null) return { current: null, compare: null }
-    return {
-      current: formatMoney(color.presalePrice, color.currency),
-      compare: color.regularPrice == null ? null : formatMoney(color.regularPrice, color.currency),
-    }
+    if (color.presalePrice == null) return { current: null }
+    return { current: formatMoney(color.presalePrice, color.currency) }
   }
-  if (color.price == null) return { current: null, compare: null }
-  return { current: formatMoney(color.price, color.currency), compare: null }
+  if (color.price == null) return { current: null }
+  return { current: formatMoney(color.price, color.currency) }
 }
 
 export function scarcityLines(color: Colorway): string[] {
-  const lines: string[] = []
-  if (typeof color.runSize === "number" && color.runSize > 0) lines.push(`Run of ${color.runSize}`)
-  if (typeof color.remaining === "number" && color.remaining > 0) lines.push(`${color.remaining} left`)
-  return lines
+  if (typeof color.runSize === "number" && color.runSize > 0) return [`Run of ${color.runSize}`]
+  return []
 }
 
 export function productLabel(product: Product): { text: string; named: boolean } {

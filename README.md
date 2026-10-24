@@ -23,16 +23,29 @@ npm run preview:fixture
 | `founder` | Aniyla Evans. About credit and footer. |
 | `squareLocationId` | Square location for payment links. Change this value if the merchant account moves. |
 | `squareLocationName` | Label for that location, for whoever creates the links. |
-| `email`, `instagram` | Hidden when empty. |
+| `email`, `instagram` | Contact page and contact links stay hidden until one of these is set. |
 | `about` | Hidden when empty. The founder credit still shows. |
-| `shippingBody`, `returnsBody`, `sizeGuide` | Hidden when empty. |
+| `shipWindow`, `refundPolicy`, `cancelPolicy`, `delayPolicy`, `returnsBody`, `shippingBody`, `sizeGuide` | Hidden when empty. The page does not invent these terms. |
+| `statementDescriptor` | Name buyers see on a card statement. Hidden until set. Shipping and Privacy only. |
+| `squareShareNote`, `hostingNote` | Privacy only, and only when set. |
+| `presalePriceCents`, `currency` | First hoodie pre-sale price. 8500 cents, USD ($85.00). No former price. |
+| `shippingCost` | Buyer copy. Currently `Free shipping`. Shown near the price, on the total, and on Shipping. |
+| `paymentLinkNote` | Owner note only. Not rendered. The Payment Link has no shipping line item. The seller absorbs processing fees, and fees are never shown to buyers. |
 | `timeZone` | Used to print a pre-order end date. |
 
 Current Square location id in config: L951MA40J026G (Valdosta). The built pages do not print it. Page templates do not contain the id. Change `squareLocationId` in this file if the merchant account moves to the LLC.
 
 ## Products
 
-`src/data/products.json` ships as `[]`. An empty catalog shows "First drop coming soon." Fill the file, then rebuild. Prices are integer US cents. `null` means the price is unset and the page shows no price. `checkoutUrl` is a Square hosted payment link. An empty string, or any url that is not `http:` or `https:`, leaves the button disabled.
+`src/data/products.json` ships as `[]`. An empty catalog shows "First drop coming soon." and hides the "Shop hoodies" button. Fill the file, then rebuild. `check-dist` fails if a published product has no name.
+
+Prices are integer US cents. The first hoodie pre-sale price is 8500 cents, USD. The page shows that as $85.00, then `Free shipping`, then a total of $85.00. Shipping adds nothing. There is no former-price field. This drop was never sold at another price, so the page cannot show one. A later product with a `null` price still shows no price.
+
+`checkoutUrl` must be `https` on `square.link`, `checkout.square.site`, or `squareup.com` (subdomains of those hosts count). Any other url leaves the button disabled. There is no Payment Link yet.
+
+Pre-order stays disabled until all of these exist: the price, the ship window (`shipEstimate`), `refundPolicy`, `cancelPolicy`, and `returnsBody`, plus a Square link. The "charged now" line is printed under that price only when the Pre-order button is actually on. Shipping does not say it on its own.
+
+The Payment Link, when it is created, has no shipping line item. The seller absorbs processing fees. The site never shows those fees.
 
 ```json
 {
@@ -47,8 +60,7 @@ Current Square location id in config: L951MA40J026G (Valdosta). The built pages 
       "id": "black",
       "name": "Black",
       "price": null,
-      "presalePrice": null,
-      "regularPrice": null,
+      "presalePrice": 8500,
       "currency": "USD",
       "runSize": null,
       "remaining": null,
@@ -62,7 +74,9 @@ Current Square location id in config: L951MA40J026G (Valdosta). The built pages 
 
 `status` is `presale`, `available`, `soldout`, or `comingsoon`. Color ids the page can switch are `black`, `gray`, and `white`. Size ids are `s`, `m`, `l`, `xl`, `2xl`, and `3xl`.
 
-`runSize` and `remaining` render only when they are numbers above zero. `remaining: 0` marks that color sold out and disables Buy. There is no countdown. `presaleEndsAt` is printed as a date. If that instant has passed, the button is Pre-order closed (at build time, and again once when the page loads).
+`runSize` renders as "Run of N" only when it is a number above zero. The page does not print a "left" count. `remaining: 0` marks that color sold out and disables Buy. There is no countdown. `presaleEndsAt` is printed as a date. If that instant has passed, the button is Pre-order closed (at build time, and again once when the page loads).
+
+A shot may set `"render": true`. That flag is for a generated frame only. See Images.
 
 ## Square
 
@@ -80,22 +94,23 @@ No card fields and no Square secrets belong in this repo.
 
 ## Images
 
-The master photo is 1024×1536. The cutout used on the site is 941×1022. `scripts/optimize.mjs` writes AVIF and WebP at 480, 768, and the native width. It does not upscale. Close-ups at 2000px need a new master.
+The first hoodie image is a real front photo. Its alt text describes the product. The master is 1024×1536. The cutout on the site is 941×1022, with a transparent background. `scripts/optimize.mjs` writes AVIF and WebP at 480, 768, and the native width. It does not upscale. Close-ups at 2000px need a new master. Zoom stops at the image's natural width.
 
-Ghost frames still to supply, for each design and each color: front, back, side, detail crops, and an optional 36-frame spin. The gallery and spin player are already in the page. They stay empty until those files exist.
+Each design and color can include a front, a back, a side, detail crops, and an optional spin. Set `render` to true on any generated frame (a back view, a 3D view, or a spin made from the photo). The page then prints "Render, final may vary" on that image and prefixes the alt text with "Render:". A real photo leaves `render` unset. Do not describe a generated frame as a photograph of the finished garment.
 
 ## What to provide before launch
 
 - Logo file, if the typed wordmark should be replaced
-- Product photos from the ghost list, masters at least 2000px wide
-- Product names. Until `name` is set, the product page shows the photo description. It does not invent a stand-in title.
-- Prices in cents
-- Sizes, and one Square payment link per size
-- Contact email
-- Instagram handle
+- A product name for every hoodie that ships. `check-dist` rejects a blank name.
+- Sizes, and one Square payment link per size. Do not add a shipping line item. The buyer pays $85.00.
+- Contact email or Instagram, before the Contact page should appear
 - About text, if any
-- Shipping text, returns text, and size-guide measurements
-- Run size, remaining count, ship window, and pre-order end date, only when those facts are real
+- Ship window, refund policy, cancel policy, and returns policy, before Pre-order can turn on
+- Delay policy, only if you want that paragraph published
+- `statementDescriptor`, the card-statement name, before Shipping or Privacy should mention it
+- What Square shares with the seller, and what the host logs, only if those sentences should be published
+- Run size, remaining count, and pre-order end date, only when those facts are real
+- Real photos, plus any generated views with `render` set
 
 ## Hostinger
 

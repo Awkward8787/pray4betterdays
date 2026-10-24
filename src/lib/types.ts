@@ -12,6 +12,8 @@ export interface Shot {
   zoom: string
   avif: SourceFile[]
   webp: SourceFile[]
+  /** Generated or rendered frame. Real photos leave this unset. */
+  render?: boolean
 }
 
 export interface SizeOption {
@@ -26,7 +28,6 @@ export interface Colorway {
   name: string
   price: number | null
   presalePrice: number | null
-  regularPrice: number | null
   currency: string
   runSize: number | null
   remaining: number | null
@@ -70,13 +71,24 @@ export interface Site {
   timeZone: string
   about: string
   shippingBody: string
+  shipWindow: string
+  refundPolicy: string
+  cancelPolicy: string
+  delayPolicy: string
   returnsBody: string
+  statementDescriptor: string
+  squareShareNote: string
+  hostingNote: string
+  presalePriceCents: number
+  currency: string
+  shippingCost: string
+  /** Owner note for the Payment Link. Never rendered. */
+  paymentLinkNote: string
   sizeGuide: SizeGuideRow[]
 }
 
 export interface PriceView {
   current: string | null
-  compare: string | null
 }
 
 export type Cta =
