@@ -408,7 +408,103 @@ function absoluteUrl(site: Site, path: string): string {
   return `https://${site.domain}${suffix}`
 }
 
-function documentPage(ctx: Ctx, opts: { title: string; description: string; path: string; main: string; status?: number }): { status: number; html: string } {
+function jsonLdMarkup(nodes: object[] | undefined): string {
+  if (!nodes || nodes.length === 0) return ""
+  const body = JSON.stringify({ "@context": "https://schema.org", "@graph": nodes }).replace(/</g, "\\u003c")
+  return `<script type="application/ld+json">${body}</script>`
+}
+
+function orgId(site: Site): string {
+  return `https://${site.domain}/#organization`
+}
+
+function organizationLd(site: Site): object[] {
+  return [
+    {
+      "@type": "Organization",
+      "@id": orgId(site),
+      name: site.brand,
+      legalName: site.legalName,
+      url: `https://${site.domain}/`,
+      founder: { "@type": "Person", name: site.founder },
+    },
+    {
+      "@type": "WebSite",
+      "@id": `https://${site.domain}/#website`,
+      name: site.brand,
+      url: `https://${site.domain}/`,
+      publisher: { "@id": orgId(site) },
+    },
+  ]
+}
+
+const AVAILABILITY: Record<string, string> = {
+  presale: "https://schema.org/PreOrder",
+  available: "https://schema.org/InStock",
+  soldout: "https://schema.org/SoldOut",
+}
+
+export function productLd(product: Product, site: Site): object[] {
+  const url = `https://${site.domain}${productPath(product.slug)}`
+  const availability = AVAILABILITY[product.status]
+  const offers: object[] = []
+  const images: string[] = []
+  for (const color of product.colors) {
+    for (const shot of [color.images.front, color.images.back, color.images.side]) {
+      if (shot?.zoom) images.push(absoluteUrl(site, shot.zoom))
+    }
+    if (!availability) continue
+    for (const size of color.sizes) {
+      const cents = sizePriceCents(product, color, size, site)
+      if (cents == null) continue
+      offers.push({
+        "@type": "Offer",
+        name: `${color.name}, size ${size.label}`,
+        url,
+        price: (cents / 100).toFixed(2),
+        priceCurrency: color.currency || site.currency,
+        availability: sizeSoldOut(product, size) ? "https://schema.org/SoldOut" : availability,
+        itemCondition: "https://schema.org/NewCondition",
+        seller: { "@id": orgId(site) },
+        ...(site.shippingCost.trim().toLowerCase().startsWith("free shipping, us only")
+          ? {
+              shippingDetails: {
+                "@type": "OfferShippingDetails",
+                shippingRate: { "@type": "MonetaryAmount", value: "0", currency: color.currency || site.currency },
+                shippingDestination: { "@type": "DefinedRegion", addressCountry: "US" },
+              },
+            }
+          : {}),
+      })
+    }
+  }
+  const label = productLabel(product)
+  const node: Record<string, unknown> = {
+    "@type": "Product",
+    "@id": `${url}#product`,
+    name: label.text || site.brand,
+    url,
+    brand: { "@type": "Brand", name: site.brand },
+    manufacturer: { "@id": orgId(site) },
+  }
+  if (product.description.trim()) node.description = product.description.trim()
+  if (images.length) node.image = [...new Set(images)]
+  if (product.colors.length === 1) node.color = product.colors[0].name
+  if (offers.length) node.offers = offers
+  return [
+    node,
+    {
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Home", item: `https://${site.domain}/` },
+        { "@type": "ListItem", position: 2, name: "Shop", item: `https://${site.domain}/shop/` },
+        { "@type": "ListItem", position: 3, name: label.text || site.brand, item: url },
+      ],
+    },
+  ]
+}
+
+function documentPage(ctx: Ctx, opts: { title: string; description: string; path: string; main: string; status?: number; jsonLd?: object[] }): { status: number; html: string } {
   const css = ctx.assets.css.map((href) => `<link rel="stylesheet" href="${esc(href)}">`).join("")
   const canonical = `https://${ctx.site.domain}${opts.path === "/" ? "/" : opts.path.endsWith("/") ? opts.path : `${opts.path}/`}`
   const image = ctx.hero?.zoom ? absoluteUrl(ctx.site, ctx.hero.zoom) : ""
@@ -433,6 +529,7 @@ function documentPage(ctx: Ctx, opts: { title: string; description: string; path
   <meta name="twitter:description" content="${esc(opts.description)}">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   ${css}
+  ${jsonLdMarkup(opts.jsonLd)}
 </head>
 <body>
   <a class="skip" href="#content">Skip to content</a>
@@ -587,19 +684,25 @@ export function renderRoute(rawPath: string, ctx: Ctx): { status: number; html: 
   const path = normalizePath(rawPath)
   const brand = ctx.site.brand
   const description = `${brand} sells hoodies.`
+  const featured = ctx.products[0]
+  const featuredName = featured ? productLabel(featured).text : ""
+  const shipLine = ctx.site.shippingCost.trim() ? ` ${ctx.site.shippingCost.trim()}.` : ""
+  const homeDescription = featuredName
+    ? `${brand} hoodies by ${ctx.site.founder}. Pre-order the ${featuredName}, sizes S to 3XL.${shipLine}`
+    : description
   if (path === "/") {
-    return documentPage(ctx, { title: brand, description, path: "/", main: home(ctx) })
+    return documentPage(ctx, { title: featuredName ? `${brand} · ${featuredName}` : brand, description: homeDescription, path: "/", main: home(ctx), jsonLd: organizationLd(ctx.site) })
   }
   if (path === "/shop") {
     return documentPage(ctx, {
       title: `Shop · ${brand}`,
-      description,
+      description: featuredName ? `Shop ${brand}. The current drop is the ${featuredName}, on pre-order.${shipLine}` : description,
       path: "/shop/",
       main: `<article class="page"><h1 class="display title">Shop</h1>${catalog(ctx.products, ctx.site, ctx.now)}</article>`,
     })
   }
   if (path === "/about") {
-    return documentPage(ctx, { title: `About · ${brand}`, description, path: "/about/", main: about(ctx) })
+    return documentPage(ctx, { title: `About · ${brand}`, description: `About ${brand}, from ${ctx.site.legalName}. Founded and designed by ${ctx.site.founder}.`, path: "/about/", main: about(ctx) })
   }
   if (path === "/contact") {
     if (!contactReady(ctx.site)) return notFound(ctx)
@@ -608,13 +711,13 @@ export function renderRoute(rawPath: string, ctx: Ctx): { status: number; html: 
   if (path === "/shipping") {
     return documentPage(ctx, {
       title: `Shipping and returns · ${brand}`,
-      description,
+      description: [`Shipping and returns for ${brand} pre-orders.`, ctx.site.shippingCost.trim() ? `${ctx.site.shippingCost.trim()}.` : "", ctx.site.shipWindow.trim(), ctx.site.cancelPolicy.trim()].filter(Boolean).join(" "),
       path: "/shipping/",
       main: shipping(ctx),
     })
   }
   if (path === "/privacy") {
-    return documentPage(ctx, { title: `Privacy · ${brand}`, description, path: "/privacy/", main: privacy(ctx) })
+    return documentPage(ctx, { title: `Privacy · ${brand}`, description: `How ${brand} and ${ctx.site.legalName} handle your information.`, path: "/privacy/", main: privacy(ctx) })
   }
   const shopMatch = path.match(/^\/shop\/([^/]+)$/)
   if (shopMatch) {
@@ -624,8 +727,9 @@ export function renderRoute(rawPath: string, ctx: Ctx): { status: number; html: 
     const heading = label.text || brand
     return documentPage(ctx, {
       title: label.text ? `${heading} · ${brand}` : brand,
-      description,
+      description: product.description.trim() ? product.description.trim().split(/\n/)[0].slice(0, 160) : description,
       path: productPath(product.slug),
+      jsonLd: productLd(product, ctx.site),
       main: `${productArticle(product, ctx.site, ctx.now)}${sizeGuide(ctx.site)}`,
     })
   }

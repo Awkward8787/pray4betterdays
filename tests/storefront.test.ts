@@ -102,7 +102,8 @@ describe("catalog", () => {
     expect(item.name).toBe("Pray 4 Better Days Zip Hoodie")
     expect(item.slug).toBe("zip-hoodie")
     expect(item.status).toBe("presale")
-    expect(item.description).toBe("")
+    expect(item.description).toContain("Pray 4 Better Days script")
+    expect(item.description).not.toMatch(/cotton|polyester|oz|gsm/i)
     expect(item.shipEstimate).toBe("Ships within 30 days of your order.")
     expect(item.presaleEndsAt).toBeNull()
     const colorway = item.colors[0]
